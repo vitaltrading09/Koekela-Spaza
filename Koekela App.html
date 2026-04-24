@@ -28,6 +28,8 @@
   ::-webkit-scrollbar{width:0;height:0;}
   input,select,textarea,button{font-family:'Nunito',sans-serif;}
   .pin-btn:active{background:rgba(255,255,255,0.3)!important;}
+  /* Dynamic viewport height — shrinks/grows with browser chrome on Android */
+  .mobile-app-root{height:100vh;height:100dvh;}
 </style>
 <script>
   if('serviceWorker' in navigator){
@@ -673,7 +675,7 @@ function TabBar({tab,setTab,t}){
     {id:'reports',icon:'≡',label:t.reports},
   ];
   return(
-    <div style={{background:C.white,borderTop:`1px solid ${C.border}`,display:'flex',paddingBottom:6+SAFE_BOTTOM,paddingTop:4,flexShrink:0}}>
+    <div style={{background:C.white,borderTop:`1px solid ${C.border}`,display:'flex',paddingBottom:IS_DESKTOP_PREVIEW?6+SAFE_BOTTOM:'calc(6px + env(safe-area-inset-bottom))',paddingTop:4,flexShrink:0}}>
       {tabs.map(tb=>(
         <button key={tb.id} onClick={()=>setTab(tb.id)}
           style={{flex:1,background:'none',border:'none',cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:2,padding:'4px 2px'}}>
@@ -1707,7 +1709,7 @@ function App(){
 
   if(isStandalone||isMobile){
     return(
-      <div style={{height:'100vh',overflow:'hidden',background:'#F2F2F7',fontFamily:'Nunito,sans-serif'}}>
+      <div className="mobile-app-root" style={{overflow:'hidden',background:'#F2F2F7',fontFamily:'Nunito,sans-serif'}}>
         <AppContent/>
       </div>
     );
