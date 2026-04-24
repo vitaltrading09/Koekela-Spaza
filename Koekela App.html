@@ -14,6 +14,7 @@
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js" crossorigin="anonymous"></script>
 <style>
   *{margin:0;padding:0;box-sizing:border-box;}
   @keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-6px)}80%{transform:translateX(4px)}}
@@ -28,8 +29,9 @@
   ::-webkit-scrollbar{width:0;height:0;}
   input,select,textarea,button{font-family:'Nunito',sans-serif;}
   .pin-btn:active{background:rgba(255,255,255,0.3)!important;}
-  /* Dynamic viewport height — shrinks/grows with browser chrome on Android */
-  .mobile-app-root{height:100vh;height:100dvh;}
+  /* Lock app to exactly the visible viewport on mobile — most reliable approach */
+  .mobile-app-root{position:fixed;top:0;left:0;right:0;bottom:0;overflow:hidden;}
+  @media(max-width:430px){body{overflow:hidden;height:100%;}}
 </style>
 <script>
   if('serviceWorker' in navigator){
@@ -305,9 +307,54 @@ function _persist(d){
 function saveData(d){
   _persist(d);
   try{new BroadcastChannel('koekela_sync').postMessage({type:'update',data:d});}catch(e){}
+  saveToCloud(d).catch(()=>{});
 }
 
 function markBackup(){localStorage.setItem('koekela_last_backup',Date.now().toString());}
+
+// ─────────────────────────────────────────────────────────────
+// CLOUD SYNC — Supabase
+// ─────────────────────────────────────────────────────────────
+function getSBConfig(){
+  return{
+    url:localStorage.getItem('koekela_sb_url')||'',
+    key:localStorage.getItem('koekela_sb_key')||'',
+    shopId:localStorage.getItem('koekela_shop_id')||''
+  };
+}
+function getSBClient(){
+  const{url,key}=getSBConfig();
+  if(!url||!key||!window.supabase)return null;
+  try{return window.supabase.createClient(url,key);}catch(e){return null;}
+}
+async function saveToCloud(d){
+  const sb=getSBClient();const{shopId}=getSBConfig();
+  if(!sb||!shopId)return;
+  const{error}=await sb.from('shop_data').upsert(
+    {shop_id:shopId,data:d,updated_at:new Date().toISOString()},
+    {onConflict:'shop_id'}
+  );
+  if(error)throw error;
+}
+async function loadFromCloud(){
+  const sb=getSBClient();const{shopId}=getSBConfig();
+  if(!sb||!shopId)return null;
+  try{
+    const{data,error}=await sb.from('shop_data').select('data').eq('shop_id',shopId).single();
+    if(error||!data)return null;
+    return data.data;
+  }catch(e){return null;}
+}
+function subscribeToCloud(cb){
+  const sb=getSBClient();const{shopId}=getSBConfig();
+  if(!sb||!shopId)return null;
+  try{
+    return sb.channel('koekela-'+shopId)
+      .on('postgres_changes',{event:'UPDATE',schema:'public',table:'shop_data',filter:'shop_id=eq.'+shopId},
+        payload=>{if(payload.new?.data)cb(payload.new.data);})
+      .subscribe();
+  }catch(e){return null;}
+}
 
 function uid(){
   try{return crypto.randomUUID();}catch(e){}
@@ -1519,6 +1566,78 @@ function ReportsScreen({data,t,lang}){
 }
 
 // ─────────────────────────────────────────────────────────────
+// CLOUD SYNC SETTINGS SECTION
+// ─────────────────────────────────────────────────────────────
+function CloudSyncSection({data}){
+  const cfg=getSBConfig();
+  const[url,setUrl]=React.useState(cfg.url);
+  const[key,setKey]=React.useState(cfg.key);
+  const[shopId,setShopId]=React.useState(cfg.shopId);
+  const[status,setStatus]=React.useState('idle');
+  const[show,setShow]=React.useState(!cfg.url);
+  const isConfigured=!!(cfg.url&&cfg.key&&cfg.shopId);
+
+  async function saveAndTest(){
+    setStatus('saving');
+    localStorage.setItem('koekela_sb_url',url.trim());
+    localStorage.setItem('koekela_sb_key',key.trim());
+    localStorage.setItem('koekela_shop_id',shopId.trim());
+    try{await saveToCloud(data);setStatus('ok');setTimeout(()=>setShow(false),1500);}
+    catch(e){setStatus('fail');}
+  }
+  function disconnect(){
+    ['koekela_sb_url','koekela_sb_key','koekela_shop_id'].forEach(k=>localStorage.removeItem(k));
+    setUrl('');setKey('');setShopId('');setStatus('idle');setShow(true);
+  }
+
+  return(
+    <div style={{borderTop:`1px solid ${C.border}`,paddingTop:14,marginBottom:14}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+        <div style={{fontSize:12,fontWeight:700,color:C.muted,textTransform:'uppercase',letterSpacing:.5}}>☁️ Cloud Sync</div>
+        <span style={{fontSize:12,fontWeight:700,color:isConfigured?C.success:'#999'}}>{isConfigured?'● Connected':'○ Off'}</span>
+      </div>
+      {isConfigured&&!show&&(
+        <div style={{background:C.bg,borderRadius:10,padding:'10px 14px',marginBottom:8,fontSize:12,color:C.muted}}>
+          Shop: <strong style={{color:C.text}}>{cfg.shopId}</strong> · Syncing automatically
+        </div>
+      )}
+      <Btn onClick={()=>setShow(s=>!s)} variant='outline' style={{width:'100%',marginBottom:show?10:0}}>
+        {show?'▲ Hide':(isConfigured?'✏️ Edit Sync Settings':'⚙️ Set Up Cloud Sync')}
+      </Btn>
+      {show&&(
+        <div>
+          <div style={{fontSize:11,lineHeight:1.6,background:'#EFF6FF',borderRadius:8,padding:'10px',border:'1px solid #BFDBFE',marginBottom:10,color:'#1D4ED8'}}>
+            💡 Go to <strong>supabase.com</strong> → your project → <strong>Settings → API</strong><br/>Copy <em>Project URL</em> and <em>anon public</em> key. Choose any Shop ID — all devices must use the same one.
+          </div>
+          {[
+            {label:'Project URL',val:url,set:setUrl,ph:'https://xxxx.supabase.co'},
+            {label:'Anon Key',val:key,set:setKey,ph:'eyJhbGciOi...'},
+            {label:'Shop ID',val:shopId,set:setShopId,ph:'my-spaza-2024'},
+          ].map(({label,val,set,ph})=>(
+            <div key={label} style={{marginBottom:8}}>
+              <div style={{fontSize:11,fontWeight:700,color:C.muted,marginBottom:3}}>{label}</div>
+              <input value={val} onChange={e=>set(e.target.value)} placeholder={ph}
+                style={{width:'100%',border:`1.5px solid ${C.border}`,borderRadius:8,padding:'9px 12px',fontSize:12,outline:'none',background:C.white,color:C.text}}/>
+            </div>
+          ))}
+          <Btn onClick={saveAndTest} variant='primary' style={{width:'100%',marginTop:4}}>
+            {status==='saving'?'Connecting...'
+             :status==='ok'?'✅ Connected!'
+             :status==='fail'?'❌ Failed — check details'
+             :'💾 Save & Connect'}
+          </Btn>
+          {isConfigured&&(
+            <Btn onClick={disconnect} variant='dangerOutline' style={{width:'100%',marginTop:8}}>
+              Disconnect Cloud Sync
+            </Btn>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // SETTINGS MODAL
 // ─────────────────────────────────────────────────────────────
 function SettingsModal({data,setData,t,lang,onClose,onBackup,onChangePIN}){
@@ -1595,6 +1714,8 @@ function SettingsModal({data,setData,t,lang,onClose,onBackup,onChangePIN}){
           </div>
         </div>
 
+        <CloudSyncSection data={data}/>
+
         {/* Data summary */}
         <div style={{borderTop:`1px solid ${C.border}`,paddingTop:14}}>
           <div style={{fontSize:12,fontWeight:700,color:C.muted,textTransform:'uppercase',letterSpacing:.5,marginBottom:8}}>Data Summary</div>
@@ -1649,6 +1770,19 @@ function AppContent(){
       ch.onmessage=e=>{if(e.data?.type==='update'&&e.data?.data)setData(e.data.data);};
     }catch(e){}
     return()=>{try{if(ch)ch.close();}catch(e){}};
+  },[]);
+
+  // Cloud sync — load on mount, subscribe to real-time changes
+  React.useEffect(()=>{
+    const{shopId}=getSBConfig();
+    if(!shopId)return;
+    loadFromCloud().then(d=>{
+      if(d?.products&&d?.customers){setData(d);_persist(d);}
+    });
+    const ch=subscribeToCloud(d=>{
+      if(d?.products&&d?.customers){setData(d);_persist(d);}
+    });
+    return()=>{try{if(ch)ch.unsubscribe();}catch(e){}};
   },[]);
 
   // Persist language change
@@ -1709,7 +1843,7 @@ function App(){
 
   if(isStandalone||isMobile){
     return(
-      <div className="mobile-app-root" style={{overflow:'hidden',background:'#F2F2F7',fontFamily:'Nunito,sans-serif'}}>
+      <div className="mobile-app-root" style={{background:'#F2F2F7',fontFamily:'Nunito,sans-serif'}}>
         <AppContent/>
       </div>
     );
