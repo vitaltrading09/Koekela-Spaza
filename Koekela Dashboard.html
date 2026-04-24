@@ -291,7 +291,25 @@ function Overview({data,setData,setSection,setToast}){
   const todayTotal=todayTxs.reduce((s,tx)=>s+tx.total,0);
   const totalOwed=data.customers.reduce((s,c)=>s+c.balance,0);
   const openTxs=data.transactions.filter(tx=>tx.status==='open');
-  const [settleId,setSettleId]=React.useState(null);
+  const[settleId,setSettleId]=React.useState(null);
+
+  // Profit & best sellers calculations
+  const productMap={};
+  data.products.forEach(p=>{productMap[p.id]=p;});
+  let todayProfit=0;
+  todayTxs.forEach(tx=>{tx.items.forEach(item=>{
+    const cost=productMap[item.productId]?.costPrice||0;
+    todayProfit+=(item.price-cost)*item.qty;
+  });});
+  const productSales={};
+  data.transactions.forEach(tx=>{tx.items.forEach(item=>{
+    if(!productSales[item.productId])productSales[item.productId]={name:item.name,qty:0,revenue:0};
+    productSales[item.productId].qty+=item.qty;
+    productSales[item.productId].revenue+=item.total;
+  });});
+  const bestSellers=Object.values(productSales).sort((a,b)=>b.qty-a.qty).slice(0,5);
+  const maxQty=bestSellers.length?bestSellers[0].qty:1;
+  const todayMargin=todayTotal>0?Math.round((todayProfit/todayTotal)*100):0;
 
   function settle(id){
     const nd={...data,
@@ -304,6 +322,7 @@ function Overview({data,setData,setSection,setToast}){
   const statCards=[
     {label:'Total Outstanding',value:fmt(totalOwed),sub:`${openTxs.length} open transactions`,color:C.navy,icon:'💳'},
     {label:"Today's Sales",value:fmt(todayTotal),sub:`${todayTxs.length} transactions today`,color:C.success,icon:'📈'},
+    {label:"Today's Profit",value:fmt(todayProfit),sub:`${todayMargin}% margin today`,color:'#16a34a',icon:'💰'},
     {label:'Customers',value:data.customers.length,sub:`${data.customers.filter(c=>c.balance>0).length} with open credit`,color:C.amber,icon:'👥'},
     {label:'Products in Stock',value:data.products.length,sub:`${data.products.filter(p=>typeof p.stock_qty==='number'&&p.stock_qty===0).length} out · ${data.products.filter(p=>typeof p.stock_qty==='number'&&p.stock_qty>0&&p.stock_qty<=3).length} low`,color:C.navyLight,icon:'📦'},
   ];
@@ -330,7 +349,7 @@ function Overview({data,setData,setSection,setToast}){
         message={`Mark all transactions as paid for ${data.customers.find(c=>c.id===settleId)?.name}? Amount: ${fmt(data.customers.find(c=>c.id===settleId)?.balance)}`}
         onConfirm={()=>settle(settleId)} onCancel={()=>setSettleId(null)} confirmLabel="Yes, Mark Settled" variant='success'/>}
 
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:16,marginBottom:24}}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:16,marginBottom:24}}>
         {statCards.map(sc=>(
           <Card key={sc.label}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
@@ -389,23 +408,49 @@ function Overview({data,setData,setSection,setToast}){
           </table>
         </Card>
 
-        <Card style={{padding:0,overflow:'hidden'}}>
-          <div style={{padding:'16px 20px',borderBottom:`1px solid ${C.border}`}}>
-            <h3 style={{fontSize:16,fontWeight:800}}>Recent Transactions</h3>
-          </div>
-          <div style={{maxHeight:320,overflow:'auto'}}>
-            {openTxs.sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,10).map(tx=>(
-              <div key={tx.id} style={{padding:'12px 20px',borderBottom:`1px solid ${C.border}`}}>
-                <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
-                  <span style={{fontWeight:700,fontSize:14}}>{tx.customerName}</span>
-                  <span style={{fontWeight:900,color:C.navy,fontSize:15}}>{fmt(tx.total)}</span>
+        <div style={{display:'flex',flexDirection:'column',gap:20}}>
+          <Card style={{padding:0,overflow:'hidden'}}>
+            <div style={{padding:'16px 20px',borderBottom:`1px solid ${C.border}`}}>
+              <h3 style={{fontSize:16,fontWeight:800}}>Recent Transactions</h3>
+            </div>
+            <div style={{maxHeight:260,overflow:'auto'}}>
+              {openTxs.sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,10).map(tx=>(
+                <div key={tx.id} style={{padding:'12px 20px',borderBottom:`1px solid ${C.border}`}}>
+                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
+                    <span style={{fontWeight:700,fontSize:14}}>{tx.customerName}</span>
+                    <span style={{fontWeight:900,color:C.navy,fontSize:15}}>{fmt(tx.total)}</span>
+                  </div>
+                  <div style={{fontSize:12,color:C.muted}}>{fmtDate(tx.date)} · {tx.items.length} items</div>
                 </div>
-                <div style={{fontSize:12,color:C.muted}}>{fmtDate(tx.date)} · {tx.items.length} items</div>
-              </div>
-            ))}
-            {openTxs.length===0&&<div style={{padding:'30px',textAlign:'center',color:C.success,fontWeight:700}}>✓ All Clear — No open credit</div>}
-          </div>
-        </Card>
+              ))}
+              {openTxs.length===0&&<div style={{padding:'30px',textAlign:'center',color:C.success,fontWeight:700}}>✓ All Clear — No open credit</div>}
+            </div>
+          </Card>
+
+          <Card style={{padding:0,overflow:'hidden'}}>
+            <div style={{padding:'16px 20px',borderBottom:`1px solid ${C.border}`}}>
+              <h3 style={{fontSize:16,fontWeight:800}}>🔥 Best Sellers (All Time)</h3>
+            </div>
+            <div style={{padding:'16px 20px'}}>
+              {bestSellers.length===0&&<div style={{color:C.muted,textAlign:'center',padding:'16px 0',fontSize:14}}>No sales data yet</div>}
+              {bestSellers.map((p,i)=>(
+                <div key={p.name} style={{marginBottom:i<bestSellers.length-1?14:0}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
+                    <div style={{display:'flex',alignItems:'center',gap:8}}>
+                      <span style={{fontSize:15}}>{i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}.`}</span>
+                      <span style={{fontSize:14,fontWeight:700,color:C.text}}>{p.name}</span>
+                    </div>
+                    <span style={{fontSize:13,fontWeight:700,color:C.muted}}>{p.qty} sold</span>
+                  </div>
+                  <div style={{background:C.bg,borderRadius:4,height:7,marginBottom:3}}>
+                    <div style={{background:i===0?C.gold:'#93c5fd',borderRadius:4,height:7,width:`${Math.round((p.qty/maxQty)*100)}%`}}/>
+                  </div>
+                  <div style={{fontSize:11,color:C.muted}}>{fmt(p.revenue)} revenue</div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
       </div>
     </div>
   );
@@ -1148,27 +1193,27 @@ function Dashboard(){
   React.useEffect(()=>{
     const{shopId}=getSBConfig();
     if(!shopId)return;
-    loadFromCloud().then(d=>{
-      if(d?.products&&d?.customers){
-        setData(d);
-        const j=JSON.stringify(d);
-        try{localStorage.setItem('koekela_data',j);}catch(e){}
-        try{localStorage.setItem('koekela_data_bak',j);}catch(e){}
-        IDB.set('koekela_data',d);
-      }
-    });
+    function applyCloud(d){
+      if(!d?.products||!d?.customers)return;
+      setData(d);
+      const j=JSON.stringify(d);
+      try{localStorage.setItem('koekela_data',j);}catch(e){}
+      try{localStorage.setItem('koekela_data_bak',j);}catch(e){}
+      IDB.set('koekela_data',d);
+    }
+    function syncNow(){loadFromCloud().then(applyCloud);}
+    syncNow(); // pull on mount
+    // Pull again every time the user switches back to this tab
+    function onVisible(){if(document.visibilityState==='visible')syncNow();}
+    document.addEventListener('visibilitychange',onVisible);
     const ch=subscribeToCloud(d=>{
-      if(d?.products&&d?.customers){
-        setData(d);
-        // persist locally without re-triggering cloud push
-        const j=JSON.stringify(d);
-        try{localStorage.setItem('koekela_data',j);}catch(e){}
-        try{localStorage.setItem('koekela_data_bak',j);}catch(e){}
-        IDB.set('koekela_data',d);
-        setLiveFlash(true);setTimeout(()=>setLiveFlash(false),2000);
-      }
+      applyCloud(d);
+      setLiveFlash(true);setTimeout(()=>setLiveFlash(false),2000);
     });
-    return()=>{try{if(ch)ch.unsubscribe();}catch(e){}};
+    return()=>{
+      document.removeEventListener('visibilitychange',onVisible);
+      try{if(ch)ch.unsubscribe();}catch(e){}
+    };
   },[]);
 
   function handleBackup(){
