@@ -1,0 +1,14 @@
+{
+  "name": "Koekela Spaza Shop",
+  "short_name": "Koekela",
+  "description": "Credit management for spaza shops",
+  "start_url": "./Koekela%20App.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f2743",
+  "theme_color": "#1B3D6F",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

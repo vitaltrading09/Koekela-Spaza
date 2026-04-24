@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="114" fill="#1B3D6F"/>
+  <!-- Cart body -->
+  <path d="M140 160 h40 l36 140 h136 l32 -100 H200" fill="none" stroke="#E8A020" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Wheels -->
+  <circle cx="232" cy="320" r="18" fill="#E8A020"/>
+  <circle cx="328" cy="320" r="18" fill="#E8A020"/>
+  <!-- K letter -->
+  <text x="256" y="480" text-anchor="middle" font-size="72" font-weight="900" font-family="Arial Black,Arial,sans-serif" fill="rgba(255,255,255,0.4)">KOEKELA</text>
+</svg>
