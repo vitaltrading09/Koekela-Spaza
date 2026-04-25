@@ -522,26 +522,29 @@ function InvoiceView({customer,data,onClose}){
     document.body.classList.add('invoice-open');
     return()=>document.body.classList.remove('invoice-open');
   },[]);
-  const txs=data.transactions.filter(tx=>tx.customerId===customer.id&&tx.status==='open')
+  const txs=data.transactions.filter(tx=>tx.customerId===customer.id&&(tx.status==='open'||tx.status==='cash'))
     .sort((a,b)=>new Date(a.date)-new Date(b.date));
   const fmtTxDate=d=>new Date(d).toLocaleDateString('en-ZA',{day:'2-digit',month:'short',year:'numeric'});
   let rowCounter=0;
   const txRows=[];
   txs.forEach(tx=>{
-    txRows.push({type:'date',id:'d_'+tx.id,date:tx.date});
-    tx.items.forEach((item,i)=>{rowCounter++;txRows.push({type:'item',key:tx.id+'_'+i,num:rowCounter,...item});});
+    txRows.push({type:'date',id:'d_'+tx.id,date:tx.date,txStatus:tx.status});
+    tx.items.forEach((item,i)=>{rowCounter++;txRows.push({type:'item',key:tx.id+'_'+i,num:rowCounter,...item,txStatus:tx.status});});
   });
-  const subtotal=txRows.filter(r=>r.type==='item').reduce((s,r)=>s+r.total,0);
+  const creditTotal=txRows.filter(r=>r.type==='item'&&r.txStatus==='open').reduce((s,r)=>s+r.total,0);
+  const cashTotal=txRows.filter(r=>r.type==='item'&&r.txStatus==='cash').reduce((s,r)=>s+r.total,0);
+  const subtotal=creditTotal+cashTotal;
   const balanceDue=parseFloat(customer.balance||0);
+  const docType=creditTotal>0&&cashTotal>0?'INVOICE & RECEIPT':cashTotal>0?'RECEIPT':'INVOICE';
   const th={padding:'12px 14px',fontSize:11,fontWeight:800,color:'#64748B',textTransform:'uppercase',letterSpacing:.5};
   return(
     <div className="invoice-overlay" style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.75)',zIndex:5000,display:'flex',flexDirection:'column',alignItems:'center',padding:'20px 20px 60px',overflowY:'auto'}}>
-      <div className="no-print" style={{display:'flex',gap:12,marginBottom:16,width:'100%',maxWidth:820,justifyContent:'flex-end'}}>
+      <div className="no-print" style={{display:'flex',gap:12,marginBottom:8,width:'100%',maxWidth:820,justifyContent:'flex-end',alignItems:'center'}}>
+        <span style={{fontSize:12,color:'rgba(255,255,255,0.5)',marginRight:'auto'}}>Click Print → choose "Save as PDF" to download</span>
         <Btn onClick={()=>window.print()} variant='gold'>🖨️ Print / Save PDF</Btn>
         <Btn onClick={onClose} variant='ghost'>✕ Close</Btn>
       </div>
       <div className="invoice-print-area" style={{background:'#fff',width:'100%',maxWidth:820,borderRadius:14,padding:'52px 60px',boxShadow:'0 12px 50px rgba(0,0,0,0.25)',fontFamily:"'Nunito',sans-serif",color:'#1E293B'}}>
-        {/* Header */}
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:40,paddingBottom:24,borderBottom:'2px solid #E2E8F0'}}>
           <div style={{display:'flex',gap:16,alignItems:'center'}}>
             <span style={{fontSize:54,lineHeight:1}}>🛒</span>
@@ -552,18 +555,16 @@ function InvoiceView({customer,data,onClose}){
             </div>
           </div>
           <div style={{textAlign:'right'}}>
-            <div style={{fontSize:38,fontWeight:900,color:'#0f2743',letterSpacing:-1}}>INVOICE</div>
+            <div style={{fontSize:38,fontWeight:900,color:'#0f2743',letterSpacing:-1}}>{docType}</div>
             <div style={{fontSize:14,color:'#64748B',marginTop:8}}>#{invNum}</div>
             <div style={{fontSize:14,color:'#64748B'}}>Date: {invDate}</div>
           </div>
         </div>
-        {/* Bill To */}
         <div style={{marginBottom:32}}>
           <span style={{fontSize:15,fontWeight:800,color:'#1E293B'}}>Bill To: </span>
           <span style={{fontSize:17,fontWeight:900,color:'#0f2743'}}>{customer.name}</span>
           {customer.phone&&<div style={{fontSize:13,color:'#64748B',marginTop:4}}>{customer.phone}</div>}
         </div>
-        {/* Items table */}
         <table style={{width:'100%',borderCollapse:'collapse',marginBottom:36}}>
           <thead>
             <tr style={{background:'#F1F5F9'}}>
@@ -576,38 +577,58 @@ function InvoiceView({customer,data,onClose}){
           </thead>
           <tbody>
             {txRows.length===0?(
-              <tr><td colSpan={5} style={{padding:'32px',textAlign:'center',color:'#94A3B8',fontSize:14}}>No outstanding items for this customer</td></tr>
+              <tr><td colSpan={5} style={{padding:'32px',textAlign:'center',color:'#94A3B8',fontSize:14}}>No transactions found for this customer</td></tr>
             ):txRows.map(row=>row.type==='date'?(
-              <tr key={row.id}><td colSpan={5} style={{padding:'9px 14px',background:'#F8FAFC',fontSize:12,fontWeight:700,color:'#475569',borderBottom:'1px solid #E2E8F0'}}>📅 {fmtTxDate(row.date)}</td></tr>
+              <tr key={row.id}>
+                <td colSpan={5} style={{padding:'9px 14px',background:row.txStatus==='cash'?'#F0FDF4':'#F8FAFC',
+                  fontSize:12,fontWeight:700,color:row.txStatus==='cash'?'#15803d':'#475569',borderBottom:'1px solid #E2E8F0'}}>
+                  📅 {fmtTxDate(row.date)}
+                  {row.txStatus==='cash'&&<span style={{marginLeft:10,background:'#dcfce7',color:'#15803d',borderRadius:5,padding:'2px 8px',fontSize:11,fontWeight:800}}>✓ CASH PAID</span>}
+                  {row.txStatus==='open'&&<span style={{marginLeft:10,background:'#FEF3C7',color:'#92400e',borderRadius:5,padding:'2px 8px',fontSize:11,fontWeight:800}}>CREDIT</span>}
+                </td>
+              </tr>
             ):(
-              <tr key={row.key} style={{borderBottom:'1px solid #E2E8F0'}}>
+              <tr key={row.key} style={{borderBottom:'1px solid #E2E8F0',background:row.txStatus==='cash'?'#F0FDF4':'transparent'}}>
                 <td style={{padding:'13px 14px',color:'#94A3B8',fontSize:14}}>{row.num}</td>
                 <td style={{padding:'13px 14px',fontSize:14,fontWeight:600,color:'#1E293B'}}>{row.name}</td>
                 <td style={{padding:'13px 14px',textAlign:'center',fontSize:14,color:'#1E293B'}}>{row.qty}</td>
                 <td style={{padding:'13px 14px',textAlign:'right',fontSize:14,color:'#1E293B'}}>R{parseFloat(row.price).toFixed(2)}</td>
-                <td style={{padding:'13px 14px',textAlign:'right',fontSize:14,fontWeight:700,color:'#1E293B'}}>R{parseFloat(row.total).toFixed(2)}</td>
+                <td style={{padding:'13px 14px',textAlign:'right',fontSize:14,fontWeight:700,color:row.txStatus==='cash'?'#15803d':'#1E293B'}}>R{parseFloat(row.total).toFixed(2)}</td>
               </tr>
             ))}
           </tbody>
         </table>
-        {/* Totals */}
         <div style={{display:'flex',justifyContent:'flex-end'}}>
-          <div style={{width:300}}>
+          <div style={{width:320}}>
+            {cashTotal>0&&(
+              <div style={{display:'flex',justifyContent:'space-between',padding:'11px 0',borderBottom:'1px solid #E2E8F0'}}>
+                <span style={{fontSize:14,color:'#15803d',fontWeight:700}}>💵 Cash Purchases (paid)</span>
+                <span style={{fontSize:14,fontWeight:700,color:'#15803d'}}>R{cashTotal.toFixed(2)}</span>
+              </div>
+            )}
+            {creditTotal>0&&(
+              <div style={{display:'flex',justifyContent:'space-between',padding:'11px 0',borderBottom:'1px solid #E2E8F0'}}>
+                <span style={{fontSize:14,color:'#64748B',fontWeight:600}}>💳 Credit Purchases (tab)</span>
+                <span style={{fontSize:14,fontWeight:700,color:'#1E293B'}}>R{creditTotal.toFixed(2)}</span>
+              </div>
+            )}
             <div style={{display:'flex',justifyContent:'space-between',padding:'11px 0',borderBottom:'1px solid #E2E8F0'}}>
-              <span style={{fontSize:14,color:'#64748B',fontWeight:600}}>Subtotal</span>
+              <span style={{fontSize:14,color:'#64748B',fontWeight:600}}>Total Purchases</span>
               <span style={{fontSize:14,fontWeight:700,color:'#1E293B'}}>R{subtotal.toFixed(2)}</span>
             </div>
-            <div style={{display:'flex',justifyContent:'space-between',padding:'11px 0',borderBottom:'1px solid #E2E8F0'}}>
-              <span style={{fontSize:14,color:'#64748B',fontWeight:600}}>Total</span>
-              <span style={{fontSize:14,fontWeight:700,color:'#1E293B'}}>R{subtotal.toFixed(2)}</span>
-            </div>
-            <div style={{display:'flex',justifyContent:'space-between',padding:'14px 18px',background:'#F1F5F9',marginTop:10,borderRadius:9}}>
-              <span style={{fontSize:16,fontWeight:900,color:'#0f2743'}}>Balance Due</span>
-              <span style={{fontSize:18,fontWeight:900,color:'#0f2743'}}>R{balanceDue.toFixed(2)}</span>
-            </div>
+            {balanceDue>0?(
+              <div style={{display:'flex',justifyContent:'space-between',padding:'14px 18px',background:'#FEF3C7',marginTop:10,borderRadius:9}}>
+                <span style={{fontSize:16,fontWeight:900,color:'#92400e'}}>Balance Due (credit)</span>
+                <span style={{fontSize:18,fontWeight:900,color:'#92400e'}}>R{balanceDue.toFixed(2)}</span>
+              </div>
+            ):(
+              <div style={{display:'flex',justifyContent:'space-between',padding:'14px 18px',background:'#F0FDF4',marginTop:10,borderRadius:9}}>
+                <span style={{fontSize:16,fontWeight:900,color:'#15803d'}}>✓ All Paid Up</span>
+                <span style={{fontSize:15,fontWeight:700,color:'#15803d'}}>No balance due</span>
+              </div>
+            )}
           </div>
         </div>
-        {/* Footer */}
         <div style={{marginTop:52,paddingTop:24,borderTop:'1px solid #E2E8F0',textAlign:'center',color:'#94A3B8',fontSize:13}}>
           Thank you for your business!
         </div>
@@ -813,7 +834,7 @@ function CustomersSection({data,setData,setToast}){
                 <div style={{flex:1}}>
                   <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:6}}>
                     <span style={{fontSize:14,fontWeight:700,color:C.text}}>{fmtDate(tx.date)}</span>
-                    <Badge label={tx.status==='open'?'Outstanding':'Settled'} color={tx.status==='open'?C.amber:C.success}/>
+                    <Badge label={tx.status==='open'?'Outstanding':tx.status==='cash'?'💵 Cash Paid':'Settled'} color={tx.status==='open'?C.amber:tx.status==='cash'?C.navyLight:C.success}/>
                   </div>
                   <div style={{display:'flex',flexWrap:'wrap',gap:'4px 16px'}}>
                     {tx.items.map((it,i)=>(
@@ -1371,7 +1392,7 @@ function ReportsSection({data}){
         const credits=Object.values(grp).sort((a,b)=>new Date(a.date)-new Date(b.date));
         const totalCredit=credits.reduce((s,cr)=>s+cr.amount,0);
         const ledger=[
-          ...c.txs.map(tx=>({type:'debit',date:tx.date,items:tx.items,amount:tx.total})),
+          ...c.txs.map(tx=>({type:'debit',txStatus:tx.status,date:tx.date,items:tx.items,amount:tx.total})),
           ...credits.map(cr=>({type:'credit',date:cr.date,method:cr.method,amount:cr.amount}))
         ].sort((a,b)=>new Date(a.date)-new Date(b.date));
         return(
@@ -1397,15 +1418,15 @@ function ReportsSection({data}){
               </thead>
               <tbody>
                 {ledger.map((row,i)=>(
-                  <tr key={i} style={{borderBottom:`1px solid ${C.border}`,background:row.type==='credit'?'#F0FDF4':i%2?C.bg:'transparent'}}>
-                    <td style={{padding:'11px 20px',fontWeight:600,fontSize:13,whiteSpace:'nowrap'}}>{fmtDate(row.date)}</td>
-                    <td style={{padding:'11px 20px',fontSize:12,color:C.muted}}>
+                  <tr key={i} style={{borderBottom:`1px solid ${C.border}`,background:row.type==='credit'?'#F0FDF4':row.txStatus==='cash'?'#EFF6FF':i%2?C.bg:'transparent'}}>
+                    <td style={{padding:'11px 20px',fontWeight:600,fontSize:13,whiteSpace:'nowrap',color:row.txStatus==='cash'?C.navyLight:'inherit'}}>{fmtDate(row.date)}</td>
+                    <td style={{padding:'11px 20px',fontSize:12,color:row.txStatus==='cash'?C.navyLight:C.muted}}>
                       {row.type==='debit'
-                        ?row.items.map((it,j)=><div key={j}>{it.name} ×{it.qty} = {fmt(it.total)}</div>)
+                        ?<>{row.txStatus==='cash'&&<span style={{fontWeight:700,marginRight:4}}>💵 Cash Paid ·</span>}{row.items.map((it,j)=><div key={j}>{it.name} ×{it.qty} = {fmt(it.total)}</div>)}</>
                         :<span style={{fontWeight:700,color:'#15803d'}}>{row.method==='salary'?'💼 Salary Deduction':'💵 Cash Payment'}</span>
                       }
                     </td>
-                    <td style={{padding:'11px 20px',textAlign:'right',fontWeight:800,fontSize:15,color:C.navy}}>{row.type==='debit'?fmt(row.amount):''}</td>
+                    <td style={{padding:'11px 20px',textAlign:'right',fontWeight:800,fontSize:15,color:row.txStatus==='cash'?C.navyLight:C.navy}}>{row.type==='debit'?fmt(row.amount):''}</td>
                     <td style={{padding:'11px 20px',textAlign:'right',fontWeight:800,fontSize:15,color:'#15803d'}}>{row.type==='credit'?fmt(row.amount):''}</td>
                   </tr>
                 ))}
