@@ -1142,20 +1142,22 @@ function SaleScreen({data,setData,t,lang,setTab}){
   const [basket,setBasket]=React.useState([]);
   const [scanning,setScanning]=React.useState(false);
   const [search,setSearch]=React.useState('');
+  const [custSearch,setCustSearch]=React.useState('');
   const [toast,setToast]=React.useState('');
   const [notFound,setNotFound]=React.useState('');
+  const [payType,setPayType]=React.useState('credit');
+  const [showPayTypeModal,setShowPayTypeModal]=React.useState(false);
+  const [quickAddModal,setQuickAddModal]=React.useState(false);
+  const [quickForm,setQuickForm]=React.useState({name:'',phone:''});
+  const [editItemModal,setEditItemModal]=React.useState(null);
 
-  function handleScan(code){
-    setScanning(false);setNotFound('');
-    const p=data.products.find(x=>x.barcode===code);
-    if(p)addToBasket(p);else setNotFound(code);
-  }
+  function handleScan(code){setScanning(false);setNotFound('');const p=data.products.find(x=>x.barcode===code);if(p)addToBasket(p);else setNotFound(code);}
 
   function addToBasket(p){
     setBasket(b=>{
       const ex=b.find(i=>i.productId===p.id);
       if(ex)return b.map(i=>i.productId===p.id?{...i,qty:i.qty+1,total:parseFloat(((i.qty+1)*i.price).toFixed(2))}:i);
-      return [...b,{productId:p.id,name:lang==='af'&&p.nameAf?p.nameAf:p.name,qty:1,price:p.sellPrice,total:p.sellPrice}];
+      return[...b,{productId:p.id,name:lang==='af'&&p.nameAf?p.nameAf:p.name,qty:1,price:p.sellPrice,total:p.sellPrice,payType}];
     });
     setSearch('');
   }
@@ -1169,26 +1171,66 @@ function SaleScreen({data,setData,t,lang,setTab}){
   }
 
   function removeItem(id){setBasket(b=>b.filter(i=>i.productId!==id));}
+  function toggleItemPayType(id){setBasket(b=>b.map(i=>i.productId===id?{...i,payType:(i.payType||'credit')==='cash'?'credit':'cash'}:i));}
+
+  function saveEditItem(){
+    const{productId,qty:qStr,price:pStr,payType:pt}=editItemModal;
+    const q=Math.max(1,parseInt(qStr)||1);const p=parseFloat(pStr)||0;
+    setBasket(b=>b.map(i=>i.productId===productId?{...i,qty:q,price:p,total:parseFloat((q*p).toFixed(2)),payType:pt}:i));
+    setEditItemModal(null);
+  }
+
   const basketTotal=basket.reduce((s,i)=>s+i.total,0);
+  const creditTotal=basket.filter(i=>(i.payType||'credit')==='credit').reduce((s,i)=>s+i.total,0);
+  const cashPaid=basket.filter(i=>i.payType==='cash').reduce((s,i)=>s+i.total,0);
+
+  function selectCustomer(c){setCustomer(c);setShowPayTypeModal(true);}
+
+  function startCashSale(){
+    setCustomer({id:'CASH',name:'Cash Sale',phone:'',balance:0,isCash:true});
+    setPayType('cash');setBasket(b=>b.map(i=>({...i,payType:'cash'})));setStep(2);
+  }
+
+  function quickAddCustomer(){
+    if(!quickForm.name.trim())return;
+    const c={id:uid(),name:quickForm.name.trim(),phone:quickForm.phone.trim(),balance:0};
+    const nd={...data,customers:[...data.customers,c]};
+    setData(nd);saveData(nd);setCustomer(c);setQuickAddModal(false);setQuickForm({name:'',phone:''});setShowPayTypeModal(true);
+  }
+
+  function choosePayType(type){
+    setPayType(type);setBasket(b=>b.map(i=>({...i,payType:type})));setShowPayTypeModal(false);setStep(2);
+  }
 
   function confirmSale(){
-    const tx={id:uid(),customerId:customer.id,customerName:customer.name,date:new Date().toISOString(),items:[...basket],total:basketTotal,status:'open'};
-    const newCust=data.customers.map(c=>c.id===customer.id?{...c,balance:parseFloat((c.balance+basketTotal).toFixed(2))}:c);
-    // Deduct stock quantities
+    const isCash=customer.isCash||creditTotal===0;
+    const tx={id:uid(),customerId:isCash&&customer.isCash?null:customer.id,customerName:customer.name,
+      date:new Date().toISOString(),items:[...basket],total:basketTotal,creditTotal,cashTotal:cashPaid,
+      status:creditTotal>0?'open':'cash'};
+    let newCust=data.customers;
+    if(!customer.isCash&&creditTotal>0)
+      newCust=data.customers.map(c=>c.id===customer.id?{...c,balance:parseFloat((c.balance+creditTotal).toFixed(2))}:c);
     const updatedProducts=data.products.map(p=>{
-      const soldItem=basket.find(i=>i.productId===p.id);
-      if(!soldItem||typeof p.stock_qty!=='number')return p;
-      return{...p,stock_qty:Math.max(0,p.stock_qty-soldItem.qty)};
+      const sold=basket.find(i=>i.productId===p.id);
+      if(!sold||typeof p.stock_qty!=='number')return p;
+      return{...p,stock_qty:Math.max(0,p.stock_qty-sold.qty)};
     });
     const nd={...data,transactions:[...data.transactions,tx],customers:newCust,products:updatedProducts};
     setData(nd);saveData(nd);
-    setToast(t.addedToCredit);
-    setBasket([]);setCustomer(null);setStep(1);setNotFound('');
-    setTimeout(()=>{setToast('');setTab('customers');},2000);
+    const msg=customer.isCash||creditTotal===0?`💵 Cash: ${fmt(cashPaid)}`
+      :creditTotal>0&&cashPaid>0?`✓ Credit ${fmt(creditTotal)} + Cash ${fmt(cashPaid)}`
+      :`✓ ${t.addedToCredit}`;
+    setToast(msg);
+    const wasCash=customer.isCash;
+    setBasket([]);setCustomer(null);setStep(1);setNotFound('');setPayType('credit');
+    setTimeout(()=>{setToast('');if(!wasCash&&creditTotal>0)setTab('customers');},2000);
   }
 
   const filteredProds=data.products.filter(p=>
     !search||(p.name.toLowerCase().includes(search.toLowerCase())||(p.nameAf||'').toLowerCase().includes(search.toLowerCase()))
+  );
+  const filteredCusts=data.customers.filter(c=>
+    !custSearch||c.name.toLowerCase().includes(custSearch.toLowerCase())||c.phone.includes(custSearch)
   );
 
   return(
@@ -1196,6 +1238,65 @@ function SaleScreen({data,setData,t,lang,setTab}){
       {scanning&&<BarcodeScanner t={t} onScan={handleScan} onClose={()=>setScanning(false)}/>}
       {toast&&<Toast msg={toast} onDone={()=>setToast('')}/>}
 
+      {/* Payment type modal (slides up) */}
+      {showPayTypeModal&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:3000,display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
+          <div style={{background:'#fff',borderRadius:'20px 20px 0 0',padding:'24px 20px 36px',width:'100%',maxWidth:430}}>
+            <div style={{fontWeight:900,fontSize:18,color:C.text,marginBottom:4,textAlign:'center'}}>Payment Type</div>
+            <div style={{fontSize:13,color:C.muted,textAlign:'center',marginBottom:24}}>{customer?.name}</div>
+            <Btn onClick={()=>choosePayType('credit')} variant='primary' style={{width:'100%',marginBottom:12,padding:'16px',fontSize:16,borderRadius:14}}>
+              💳 Credit — Add to Tab
+            </Btn>
+            <Btn onClick={()=>choosePayType('cash')} variant='gold' style={{width:'100%',padding:'16px',fontSize:16,borderRadius:14}}>
+              💵 Cash — Paying Now
+            </Btn>
+            <Btn onClick={()=>setShowPayTypeModal(false)} variant='ghost' style={{width:'100%',marginTop:10}}>‹ Back</Btn>
+          </div>
+        </div>
+      )}
+
+      {/* Quick add customer modal */}
+      {quickAddModal&&(
+        <Modal title="➕ New Customer" onClose={()=>setQuickAddModal(false)}>
+          <div style={{paddingTop:12}}>
+            <Input label="Customer Name" value={quickForm.name} onChange={e=>setQuickForm(f=>({...f,name:e.target.value}))} placeholder="e.g. John Sithole"/>
+            <Input label="Phone (optional)" value={quickForm.phone} onChange={e=>setQuickForm(f=>({...f,phone:e.target.value}))} type="tel" placeholder="e.g. 082 123 4567"/>
+            <div style={{display:'flex',gap:10,marginTop:4}}>
+              <Btn onClick={()=>setQuickAddModal(false)} variant='ghost' style={{flex:1}}>Cancel</Btn>
+              <Btn onClick={quickAddCustomer} variant='primary' style={{flex:2}}>Add & Select →</Btn>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Edit item modal (step 3) */}
+      {editItemModal&&(
+        <Modal title={`✏️ ${editItemModal.name}`} onClose={()=>setEditItemModal(null)}>
+          <div style={{paddingTop:12}}>
+            <Input label="Quantity" value={String(editItemModal.qty)} onChange={e=>setEditItemModal(m=>({...m,qty:e.target.value}))} type="number"/>
+            <Input label="Price per item (R)" value={String(editItemModal.price)} onChange={e=>setEditItemModal(m=>({...m,price:e.target.value}))} type="number"/>
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:12,fontWeight:700,color:C.muted,textTransform:'uppercase',letterSpacing:.5,marginBottom:8}}>Payment Type</div>
+              <div style={{display:'flex',gap:10}}>
+                <button onClick={()=>setEditItemModal(m=>({...m,payType:'credit'}))}
+                  style={{flex:1,padding:'12px',borderRadius:12,border:`2px solid ${editItemModal.payType!=='cash'?C.navy:C.border}`,
+                    background:editItemModal.payType!=='cash'?'#EFF6FF':'transparent',fontWeight:700,fontSize:14,cursor:'pointer',
+                    color:editItemModal.payType!=='cash'?C.navy:C.muted}}>💳 Credit</button>
+                <button onClick={()=>setEditItemModal(m=>({...m,payType:'cash'}))}
+                  style={{flex:1,padding:'12px',borderRadius:12,border:`2px solid ${editItemModal.payType==='cash'?C.amber:C.border}`,
+                    background:editItemModal.payType==='cash'?'#FEF3C7':'transparent',fontWeight:700,fontSize:14,cursor:'pointer',
+                    color:editItemModal.payType==='cash'?C.amber:C.muted}}>💵 Cash</button>
+              </div>
+            </div>
+            <div style={{display:'flex',gap:10}}>
+              <Btn onClick={()=>setEditItemModal(null)} variant='ghost' style={{flex:1}}>Cancel</Btn>
+              <Btn onClick={saveEditItem} variant='primary' style={{flex:1}}>Save</Btn>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Progress steps */}
       <div style={{background:C.white,padding:'8px 20px',display:'flex',gap:6,alignItems:'center',flexShrink:0,borderBottom:`1px solid ${C.border}`}}>
         {[{n:1,l:t.selectCustomer},{n:2,l:t.basket},{n:3,l:t.confirm}].map((s,i)=>(
           <React.Fragment key={s.n}>
@@ -1210,12 +1311,24 @@ function SaleScreen({data,setData,t,lang,setTab}){
         ))}
       </div>
 
+      {/* STEP 1: Select Customer */}
       {step===1&&(
         <div style={{flex:1,overflow:'auto',padding:'12px 14px'}}>
-          <div style={{fontWeight:800,fontSize:15,color:C.text,marginBottom:10}}>{t.selectCustomer}</div>
-          {data.customers.length===0&&<div style={{color:C.muted,textAlign:'center',padding:'30px 0',fontSize:14}}>{t.noCustomers}</div>}
-          {data.customers.map(c=>(
-            <Card key={c.id} onClick={()=>{setCustomer(c);setStep(2);}} style={{border:`2px solid ${customer?.id===c.id?C.navy:'transparent'}`}}>
+          <Btn onClick={startCashSale} variant='gold' style={{width:'100%',marginBottom:10,padding:'14px',fontSize:15,borderRadius:14}}>
+            💵 Cash Sale (No Tab / Walk-in)
+          </Btn>
+          <div style={{display:'flex',gap:8,marginBottom:10}}>
+            <input value={custSearch} onChange={e=>setCustSearch(e.target.value)} placeholder="🔍 Search customer..."
+              style={{flex:1,background:C.white,border:`1.5px solid ${C.border}`,borderRadius:12,padding:'9px 12px',fontSize:13,outline:'none'}}/>
+            <button onClick={()=>setQuickAddModal(true)}
+              style={{background:C.navy,border:'none',color:'#fff',borderRadius:12,padding:'9px 14px',fontSize:12,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>
+              ➕ New
+            </button>
+          </div>
+          <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:'uppercase',letterSpacing:.5,marginBottom:8}}>Credit Customers</div>
+          {filteredCusts.length===0&&<div style={{color:C.muted,textAlign:'center',padding:'20px 0',fontSize:14}}>{t.noCustomers}</div>}
+          {filteredCusts.map(c=>(
+            <Card key={c.id} onClick={()=>selectCustomer(c)} style={{border:`2px solid ${customer?.id===c.id?C.navy:'transparent'}`,cursor:'pointer'}}>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                 <div>
                   <div style={{fontWeight:800,fontSize:15}}>{c.name}</div>
@@ -1232,6 +1345,7 @@ function SaleScreen({data,setData,t,lang,setTab}){
         </div>
       )}
 
+      {/* STEP 2: Basket */}
       {step===2&&(
         <div style={{flex:1,overflow:'auto'}}>
           <div style={{background:C.navy,padding:'10px 14px',display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0}}>
@@ -1239,27 +1353,38 @@ function SaleScreen({data,setData,t,lang,setTab}){
               <div style={{color:'rgba(255,255,255,0.55)',fontSize:11,fontWeight:600}}>Customer</div>
               <div style={{color:'#fff',fontWeight:800,fontSize:15}}>{customer?.name}</div>
             </div>
-            <button onClick={()=>setStep(1)} style={{background:'rgba(255,255,255,0.15)',border:'none',color:'#fff',borderRadius:8,padding:'7px 14px',fontSize:12,fontWeight:700,cursor:'pointer'}}>‹ Change</button>
+            <div style={{display:'flex',gap:8,alignItems:'center'}}>
+              <span style={{background:payType==='cash'?C.gold:'rgba(255,255,255,0.2)',color:payType==='cash'?C.navyDark:'#fff',
+                borderRadius:8,padding:'4px 10px',fontSize:11,fontWeight:700}}>
+                {payType==='cash'?'💵 Cash':'💳 Credit'}
+              </span>
+              <button onClick={()=>setStep(1)} style={{background:'rgba(255,255,255,0.15)',border:'none',color:'#fff',borderRadius:8,padding:'7px 14px',fontSize:12,fontWeight:700,cursor:'pointer'}}>‹ Change</button>
+            </div>
           </div>
 
           <div style={{margin:'10px 14px 0',background:C.white,borderRadius:14,overflow:'hidden',border:`1px solid ${C.border}`}}>
             <div style={{padding:'10px 14px',borderBottom:`1px solid ${C.border}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
               <span style={{fontWeight:800,fontSize:13}}>🛒 {t.basket} ({basket.length} {t.items})</span>
-              {basket.length>0&&(
-                <button onClick={()=>setBasket(b=>b.slice(0,-1))}
-                  style={{background:'none',border:'none',color:C.amber,fontSize:12,fontWeight:700,cursor:'pointer'}}>
-                  ↩ {t.undo}
-                </button>
-              )}
+              {basket.length>0&&<button onClick={()=>setBasket(b=>b.slice(0,-1))} style={{background:'none',border:'none',color:C.amber,fontSize:12,fontWeight:700,cursor:'pointer'}}>↩ {t.undo}</button>}
             </div>
             {basket.length===0?(
               <div style={{padding:'16px',textAlign:'center',color:C.muted,fontSize:13,lineHeight:1.5}}>{t.emptyBasket}</div>
             ):(
-              basket.map(item=>(
+              basket.map(item=>{
+                const ipt=(item.payType||'credit')==='cash';
+                return(
                 <div key={item.productId} style={{padding:'10px 12px',borderBottom:`1px solid ${C.border}`,display:'flex',alignItems:'center',gap:8}}>
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{fontWeight:700,fontSize:13,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{item.name}</div>
-                    <div style={{color:C.muted,fontSize:11}}>{fmt(item.price)} {t.perItem}</div>
+                    <div style={{display:'flex',gap:6,alignItems:'center',marginTop:3}}>
+                      <span style={{color:C.muted,fontSize:11}}>{fmt(item.price)} {t.perItem}</span>
+                      <button onClick={()=>toggleItemPayType(item.productId)}
+                        style={{background:ipt?'#FEF3C7':'#EFF6FF',color:ipt?C.amber:C.navyLight,
+                          border:`1px solid ${ipt?C.amber:C.navyLight}`,borderRadius:6,
+                          padding:'2px 7px',fontSize:10,fontWeight:800,cursor:'pointer'}}>
+                        {ipt?'💵 Cash':'💳 Credit'}
+                      </button>
+                    </div>
                   </div>
                   <div style={{display:'flex',alignItems:'center',gap:5}}>
                     <button onClick={()=>changeQty(item.productId,-1)} style={{width:26,height:26,borderRadius:13,background:C.bg,border:`1px solid ${C.border}`,cursor:'pointer',fontSize:16,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',color:C.navy}}>−</button>
@@ -1268,17 +1393,35 @@ function SaleScreen({data,setData,t,lang,setTab}){
                   </div>
                   <div style={{textAlign:'right',minWidth:60}}>
                     <div style={{fontWeight:800,fontSize:13,color:C.navy}}>{fmt(item.total)}</div>
-                    <button onClick={()=>removeItem(item.productId)} style={{background:'none',border:'none',color:C.danger,fontSize:11,fontWeight:700,cursor:'pointer',padding:0}}>
-                      🗑️ {t.removeFromBasket}
-                    </button>
+                    <button onClick={()=>removeItem(item.productId)} style={{background:'none',border:'none',color:C.danger,fontSize:11,fontWeight:700,cursor:'pointer',padding:0}}>🗑️ {t.removeFromBasket}</button>
                   </div>
                 </div>
-              ))
+                );
+              })
             )}
             {basket.length>0&&(
-              <div style={{padding:'10px 14px',background:C.goldLight,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                <span style={{fontWeight:800,color:C.navyDark}}>{t.total}</span>
-                <span style={{fontWeight:900,fontSize:18,color:C.navy}}>{fmt(basketTotal)}</span>
+              <div style={{padding:'10px 14px',background:C.goldLight}}>
+                {creditTotal>0&&cashPaid>0?(
+                  <>
+                    <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
+                      <span style={{fontSize:12,fontWeight:700,color:C.navyDark}}>💳 Credit</span>
+                      <span style={{fontSize:13,fontWeight:800,color:C.navy}}>{fmt(creditTotal)}</span>
+                    </div>
+                    <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
+                      <span style={{fontSize:12,fontWeight:700,color:C.navyDark}}>💵 Cash</span>
+                      <span style={{fontSize:13,fontWeight:800,color:C.amber}}>{fmt(cashPaid)}</span>
+                    </div>
+                    <div style={{display:'flex',justifyContent:'space-between',borderTop:`1px solid ${C.gold}`,paddingTop:4}}>
+                      <span style={{fontWeight:800,color:C.navyDark}}>{t.total}</span>
+                      <span style={{fontWeight:900,fontSize:18,color:C.navy}}>{fmt(basketTotal)}</span>
+                    </div>
+                  </>
+                ):(
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                    <span style={{fontWeight:800,color:C.navyDark}}>{t.total}</span>
+                    <span style={{fontWeight:900,fontSize:18,color:C.navy}}>{fmt(basketTotal)}</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1331,29 +1474,77 @@ function SaleScreen({data,setData,t,lang,setTab}){
         </div>
       )}
 
+      {/* STEP 3: Review & Confirm */}
       {step===3&&(
         <div style={{flex:1,overflow:'auto',padding:'14px'}}>
           <Card style={{marginBottom:12}}>
-            <div style={{marginBottom:10,paddingBottom:10,borderBottom:`1px solid ${C.border}`}}>
-              <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:'uppercase',letterSpacing:.5}}>Customer</div>
-              <div style={{fontSize:18,fontWeight:900,color:C.navy,marginTop:2}}>{customer?.name}</div>
-            </div>
-            {basket.map(item=>(
-              <div key={item.productId} style={{display:'flex',justifyContent:'space-between',marginBottom:7}}>
-                <div><span style={{fontWeight:600,fontSize:14}}>{item.name}</span><span style={{color:C.muted,fontSize:13}}> ×{item.qty}</span></div>
-                <span style={{fontWeight:700,fontSize:14}}>{fmt(item.total)}</span>
+            <div style={{marginBottom:10,paddingBottom:10,borderBottom:`1px solid ${C.border}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div>
+                <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:'uppercase',letterSpacing:.5}}>Customer</div>
+                <div style={{fontSize:18,fontWeight:900,color:C.navy,marginTop:2}}>{customer?.name}</div>
               </div>
-            ))}
-            <div style={{borderTop:`2px solid ${C.navy}`,paddingTop:10,marginTop:6,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-              <span style={{fontWeight:800,fontSize:15}}>{t.total}</span>
-              <span style={{fontWeight:900,fontSize:24,color:C.navy}}>{fmt(basketTotal)}</span>
+              <span style={{background:payType==='cash'?'#FEF3C7':'#EFF6FF',color:payType==='cash'?C.amber:C.navyLight,
+                borderRadius:8,padding:'5px 11px',fontSize:12,fontWeight:800}}>
+                {payType==='cash'?'💵 Cash':'💳 Credit'}
+              </span>
+            </div>
+            {basket.map(item=>{
+              const ipt=(item.payType||'credit')==='cash';
+              return(
+              <div key={item.productId} style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8,gap:8}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <span style={{fontWeight:600,fontSize:14}}>{item.name}</span>
+                  <span style={{color:C.muted,fontSize:13}}> ×{item.qty}</span>
+                  <span style={{background:ipt?'#FEF3C7':'#EFF6FF',color:ipt?C.amber:C.navyLight,
+                    borderRadius:4,padding:'1px 6px',fontSize:10,fontWeight:700,marginLeft:6}}>
+                    {ipt?'💵':'💳'}
+                  </span>
+                </div>
+                <div style={{display:'flex',gap:8,alignItems:'center',flexShrink:0}}>
+                  <button onClick={()=>setEditItemModal({...item,qty:String(item.qty),price:String(item.price),payType:item.payType||'credit'})}
+                    style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:'4px 9px',fontSize:13,cursor:'pointer',color:C.muted}}>✏️</button>
+                  <span style={{fontWeight:700,fontSize:14,minWidth:58,textAlign:'right'}}>{fmt(item.total)}</span>
+                </div>
+              </div>
+              );
+            })}
+            <div style={{borderTop:`2px solid ${C.navy}`,paddingTop:10,marginTop:6}}>
+              {creditTotal>0&&cashPaid>0?(
+                <>
+                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+                    <span style={{fontSize:13,fontWeight:700,color:C.navyDark}}>💳 Credit</span>
+                    <span style={{fontSize:13,fontWeight:800,color:C.navy}}>{fmt(creditTotal)}</span>
+                  </div>
+                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:6}}>
+                    <span style={{fontSize:13,fontWeight:700,color:C.amber}}>💵 Cash</span>
+                    <span style={{fontSize:13,fontWeight:800,color:C.amber}}>{fmt(cashPaid)}</span>
+                  </div>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',borderTop:`1px solid ${C.border}`,paddingTop:6}}>
+                    <span style={{fontWeight:800,fontSize:15}}>{t.total}</span>
+                    <span style={{fontWeight:900,fontSize:24,color:C.navy}}>{fmt(basketTotal)}</span>
+                  </div>
+                </>
+              ):(
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                  <span style={{fontWeight:800,fontSize:15}}>{t.total}</span>
+                  <span style={{fontWeight:900,fontSize:24,color:C.navy}}>{fmt(basketTotal)}</span>
+                </div>
+              )}
             </div>
           </Card>
-          <div style={{background:C.goldLight,border:`1px solid ${C.gold}`,borderRadius:12,padding:'12px 16px',marginBottom:16}}>
-            <div style={{fontSize:12,fontWeight:700,color:C.navyDark,marginBottom:2}}>{t.newBalance}</div>
-            <div style={{fontSize:22,fontWeight:900,color:C.navy}}>{fmt((customer?.balance||0)+basketTotal)}</div>
-            <div style={{fontSize:11,color:C.muted,marginTop:2}}>{t.deductNote}</div>
-          </div>
+          {!customer.isCash&&creditTotal>0&&(
+            <div style={{background:C.goldLight,border:`1px solid ${C.gold}`,borderRadius:12,padding:'12px 16px',marginBottom:16}}>
+              <div style={{fontSize:12,fontWeight:700,color:C.navyDark,marginBottom:2}}>{t.newBalance}</div>
+              <div style={{fontSize:22,fontWeight:900,color:C.navy}}>{fmt((customer?.balance||0)+creditTotal)}</div>
+              <div style={{fontSize:11,color:C.muted,marginTop:2}}>{t.deductNote}</div>
+            </div>
+          )}
+          {(customer.isCash||creditTotal===0)&&(
+            <div style={{background:'#ECFDF5',border:'1px solid #6EE7B7',borderRadius:12,padding:'12px 16px',marginBottom:16}}>
+              <div style={{fontSize:14,fontWeight:700,color:'#065f46'}}>💵 Cash Payment — {fmt(cashPaid)}</div>
+              <div style={{fontSize:12,color:'#047857',marginTop:2}}>No credit tab — sale recorded as paid</div>
+            </div>
+          )}
           <div style={{display:'flex',gap:10}}>
             <Btn onClick={()=>setStep(2)} variant='outline' style={{flex:1}}>‹ {t.back}</Btn>
             <Btn onClick={confirmSale} variant='primary' style={{flex:2}}>✓ {t.confirmSale}</Btn>
@@ -1438,9 +1629,16 @@ function InvoiceView({customer,data,onClose}){
     document.body.classList.add('invoice-open');
     return()=>document.body.classList.remove('invoice-open');
   },[]);
-  const txs=data.transactions.filter(tx=>tx.customerId===customer.id&&tx.status==='open');
-  const allItems=txs.flatMap(tx=>tx.items);
-  const subtotal=allItems.reduce((s,i)=>s+i.total,0);
+  const txs=data.transactions.filter(tx=>tx.customerId===customer.id&&tx.status==='open')
+    .sort((a,b)=>new Date(a.date)-new Date(b.date));
+  const fmtTxDate=d=>new Date(d).toLocaleDateString('en-ZA',{day:'2-digit',month:'short',year:'numeric'});
+  let rowCounter=0;
+  const txRows=[];
+  txs.forEach(tx=>{
+    txRows.push({type:'date',id:'d_'+tx.id,date:tx.date});
+    tx.items.forEach((item,i)=>{rowCounter++;txRows.push({type:'item',key:tx.id+'_'+i,num:rowCounter,...item});});
+  });
+  const subtotal=txRows.filter(r=>r.type==='item').reduce((s,r)=>s+r.total,0);
   const balanceDue=parseFloat(customer.balance||0);
   return(
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.82)',zIndex:5000,display:'flex',flexDirection:'column',overflow:'auto'}}>
@@ -1486,15 +1684,17 @@ function InvoiceView({customer,data,onClose}){
             </tr>
           </thead>
           <tbody>
-            {allItems.length===0?(
+            {txRows.length===0?(
               <tr><td colSpan={5} style={{padding:'20px',textAlign:'center',color:'#94A3B8',fontSize:13}}>No outstanding items</td></tr>
-            ):allItems.map((item,i)=>(
-              <tr key={i} style={{borderBottom:'1px solid #E2E8F0'}}>
-                <td style={{padding:'10px 8px',textAlign:'center',color:'#94A3B8'}}>{i+1}</td>
-                <td style={{padding:'10px 8px',fontWeight:600,color:'#1E293B'}}>{item.name}</td>
-                <td style={{padding:'10px 8px',textAlign:'right'}}>{item.qty}</td>
-                <td style={{padding:'10px 8px',textAlign:'right'}}>R{parseFloat(item.price).toFixed(2)}</td>
-                <td style={{padding:'10px 8px',textAlign:'right',fontWeight:700}}>R{parseFloat(item.total).toFixed(2)}</td>
+            ):txRows.map(row=>row.type==='date'?(
+              <tr key={row.id}><td colSpan={5} style={{padding:'7px 8px',background:'#F8FAFC',fontSize:11,fontWeight:700,color:'#475569',borderBottom:'1px solid #E2E8F0'}}>📅 {fmtTxDate(row.date)}</td></tr>
+            ):(
+              <tr key={row.key} style={{borderBottom:'1px solid #E2E8F0'}}>
+                <td style={{padding:'10px 8px',textAlign:'center',color:'#94A3B8'}}>{row.num}</td>
+                <td style={{padding:'10px 8px',fontWeight:600,color:'#1E293B'}}>{row.name}</td>
+                <td style={{padding:'10px 8px',textAlign:'right'}}>{row.qty}</td>
+                <td style={{padding:'10px 8px',textAlign:'right'}}>R{parseFloat(row.price).toFixed(2)}</td>
+                <td style={{padding:'10px 8px',textAlign:'right',fontWeight:700}}>R{parseFloat(row.total).toFixed(2)}</td>
               </tr>
             ))}
           </tbody>
@@ -1529,7 +1729,7 @@ function CustomersScreen({data,setData,t,lang}){
   const [editModal,setEditModal]=React.useState(null);
   const [form,setForm]=React.useState({name:'',phone:''});
   const [toast,setToast]=React.useState('');
-  const [settleConfirm,setSettleConfirm]=React.useState(false);
+  const [settleMethodModal,setSettleMethodModal]=React.useState(false);
   const [delTxConfirm,setDelTxConfirm]=React.useState(null);
   const [delCustConfirm,setDelCustConfirm]=React.useState(false);
   const [delPinModal,setDelPinModal]=React.useState(false);
@@ -1550,12 +1750,13 @@ function CustomersScreen({data,setData,t,lang}){
 
   function openEdit(c){setForm({name:c.name,phone:c.phone});setEditModal(c);}
 
-  function settleAll(id){
+  function settleAll(id,method){
+    const now=new Date().toISOString();
     const nd={...data,
-      transactions:data.transactions.map(tx=>tx.customerId===id?{...tx,status:'settled'}:tx),
+      transactions:data.transactions.map(tx=>tx.customerId===id&&tx.status==='open'?{...tx,status:'settled',settledAt:now,settledMethod:method}:tx),
       customers:data.customers.map(c=>c.id===id?{...c,balance:0}:c)
     };
-    setData(nd);saveData(nd);setSettleConfirm(false);setToast(t.settled+'!');
+    setData(nd);saveData(nd);setSettleMethodModal(false);setToast(t.settled+'!');
   }
 
   function deleteTx(txId,amount,custId){
@@ -1578,7 +1779,24 @@ function CustomersScreen({data,setData,t,lang}){
     return(
       <div style={{height:'100%',display:'flex',flexDirection:'column',background:C.bg,position:'relative'}}>
         {toast&&<Toast msg={toast} onDone={()=>setToast('')}/>}
-        {settleConfirm&&<ConfirmDialog title={t.settle} message={`${t.settleConfirm} (${fmt(openBalance)})`} onConfirm={()=>settleAll(cust.id)} onCancel={()=>setSettleConfirm(false)} confirmLabel={t.yesSettle} danger={false}/>}
+        {settleMethodModal&&(
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:4000,display:'flex',flexDirection:'column',justifyContent:'flex-end'}} onClick={()=>setSettleMethodModal(false)}>
+            <div onClick={e=>e.stopPropagation()} style={{background:'#fff',borderRadius:'20px 20px 0 0',padding:'24px 20px 36px'}}>
+              <div style={{fontWeight:900,fontSize:17,color:C.navyDark,marginBottom:4}}>How is this being settled?</div>
+              <div style={{fontSize:13,color:C.muted,marginBottom:20}}>{fmt(openBalance)} outstanding for {cust.name}</div>
+              <button onClick={()=>settleAll(cust.id,'cash')}
+                style={{width:'100%',background:'#F0FDF4',border:'2px solid #22c55e',borderRadius:14,padding:'14px 16px',marginBottom:10,cursor:'pointer',display:'flex',alignItems:'center',gap:12,textAlign:'left'}}>
+                <span style={{fontSize:26}}>💵</span>
+                <div><div style={{fontWeight:800,fontSize:15,color:'#15803d'}}>Cash Payment</div><div style={{fontSize:12,color:C.muted}}>Customer paid in cash</div></div>
+              </button>
+              <button onClick={()=>settleAll(cust.id,'salary')}
+                style={{width:'100%',background:'#EFF6FF',border:'2px solid #3b82f6',borderRadius:14,padding:'14px 16px',cursor:'pointer',display:'flex',alignItems:'center',gap:12,textAlign:'left'}}>
+                <span style={{fontSize:26}}>💼</span>
+                <div><div style={{fontWeight:800,fontSize:15,color:'#1d4ed8'}}>Salary Deduction</div><div style={{fontSize:12,color:C.muted}}>Deducted from monthly pay</div></div>
+              </button>
+            </div>
+          </div>
+        )}
         {delTxConfirm&&<ConfirmDialog title={t.deleteTransaction} message={`${fmtDate(delTxConfirm.date)} — ${fmt(delTxConfirm.total)}`} onConfirm={()=>deleteTx(delTxConfirm.id,delTxConfirm.total,cust.id)} onCancel={()=>setDelTxConfirm(null)} confirmLabel={t.deleteTransaction}/>}
         {invoiceCustomer&&<InvoiceView customer={invoiceCustomer} data={data} onClose={()=>setInvoiceCustomer(null)}/>}
         {delPinModal&&<PINConfirmModal title="Confirm Deletion" message={`Enter your PIN to permanently delete ${cust.name} and all their transactions`} onConfirm={()=>{setDelPinModal(false);deleteCustomer(cust.id);}} onCancel={()=>setDelPinModal(false)}/>}
@@ -1599,7 +1817,7 @@ function CustomersScreen({data,setData,t,lang}){
               <div style={{color:'rgba(255,255,255,0.6)',fontSize:11,fontWeight:600,textTransform:'uppercase'}}>{t.outstanding}</div>
               <div style={{color:openBalance>0?C.gold:'#4ADE80',fontSize:30,fontWeight:900}}>{fmt(openBalance)}</div>
             </div>
-            {openBalance>0&&<Btn onClick={()=>setSettleConfirm(true)} variant='gold' small>✓ {t.settle}</Btn>}
+            {openBalance>0&&<Btn onClick={()=>setSettleMethodModal(true)} variant='gold' small>✓ {t.settle}</Btn>}
           </div>
         </div>
 
@@ -1703,6 +1921,7 @@ function ReportsScreen({data,t,lang}){
   const[year,setYear]=React.useState(curYear);
   const[showAll,setShowAll]=React.useState(false);
   const[custFilter,setCustFilter]=React.useState('all');
+  const[viewMode,setViewMode]=React.useState('statement');
   const years=[curYear-1,curYear,curYear+1];
 
   const filtered=data.transactions.filter(tx=>{
@@ -1743,10 +1962,42 @@ function ReportsScreen({data,t,lang}){
 
   const periodLabel=showAll?t.allMonths:MONTHS[monthIdx]+' '+year;
 
+  // Previous period for comparison
+  const prevMon=monthIdx===0?11:monthIdx-1;
+  const prevYr=monthIdx===0?year-1:year;
+  const prevFiltered=showAll?[]:data.transactions.filter(tx=>{const d=new Date(tx.date);return d.getMonth()===prevMon&&d.getFullYear()===prevYr;});
+  const prevRevenue=prevFiltered.reduce((s,tx)=>s+tx.total,0);
+  let prevProfit=0;prevFiltered.forEach(tx=>{tx.items.forEach(item=>{prevProfit+=(item.price-(productMap[item.productId]?.costPrice||0))*item.qty;});});
+  const revChange=prevRevenue>0?Math.round(((grand-prevRevenue)/prevRevenue)*100):null;
+  const profChange=prevProfit>0?Math.round(((totalProfit-prevProfit)/prevProfit)*100):null;
+  // Slow movers: in-stock products with no sales this period
+  const soldSet=new Set(filtered.flatMap(tx=>tx.items.map(i=>i.productId)));
+  const slowMovers=data.products.filter(p=>typeof p.stock_qty==='number'&&p.stock_qty>0&&!soldSet.has(p.id)).slice(0,5);
+  // Rule-based suggestions
+  const suggestions=[];
+  if(bestSellers.length>0)suggestions.push({icon:'🔥',text:`${bestSellers[0].name} is your top seller — consider ordering more stock`});
+  Object.entries(productSales).forEach(([id,ps])=>{
+    const prod=productMap[id];if(prod&&prod.costPrice&&ps.qty>=2&&ps.revenue>0){
+      const m=Math.round(((ps.revenue-ps.qty*(prod.costPrice||0))/ps.revenue)*100);
+      if(m<15)suggestions.push({icon:'💡',text:`${ps.name} has a thin margin (${m}%) — try raising the price slightly`});}
+  });
+  if(slowMovers.length>0)suggestions.push({icon:'📦',text:`${slowMovers[0].name} is in stock but hasn't sold this period — try a special or bundle`});
+  if(revChange!==null&&revChange>0)suggestions.push({icon:'📈',text:`Revenue is up ${revChange}% vs last month — great momentum!`});
+  if(revChange!==null&&revChange<-10)suggestions.push({icon:'⚠️',text:`Revenue is down ${Math.abs(revChange)}% vs last month — consider running a promotion`});
+
   return(
     <div style={{height:'100%',overflow:'auto',background:C.bg}}>
       {/* Period + customer filters */}
       <div style={{padding:'8px 14px',background:C.white,borderBottom:`1px solid ${C.border}`}}>
+        <div style={{display:'flex',gap:6,marginBottom:8}}>
+          {[['statement','📋 Statement'],['analytics','📊 Analytics']].map(([m,lbl])=>(
+            <button key={m} onClick={()=>setViewMode(m)}
+              style={{flex:1,background:viewMode===m?C.navy:'transparent',color:viewMode===m?'#fff':C.muted,
+                border:`1.5px solid ${viewMode===m?C.navy:C.border}`,borderRadius:10,padding:'8px',fontSize:12,fontWeight:700,cursor:'pointer'}}>
+              {lbl}
+            </button>
+          ))}
+        </div>
         <div style={{display:'flex',gap:8,marginBottom:6}}>
           <select value={showAll?'all':monthIdx} onChange={e=>{if(e.target.value==='all'){setShowAll(true);}else{setShowAll(false);setMonthIdx(Number(e.target.value));}}}
             style={{flex:1,background:C.bg,border:`1.5px solid ${C.border}`,borderRadius:10,padding:'10px',fontSize:13,color:C.text,outline:'none'}}>
@@ -1765,6 +2016,87 @@ function ReportsScreen({data,t,lang}){
         </select>
       </div>
 
+      {viewMode==='analytics'&&(
+      <div style={{padding:'12px 14px 24px'}}>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
+          <div style={{background:`linear-gradient(135deg,${C.navyDark},${C.navy})`,borderRadius:14,padding:'14px 16px'}}>
+            <div style={{color:'rgba(255,255,255,0.55)',fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:.5}}>Revenue</div>
+            <div style={{color:'#fff',fontSize:22,fontWeight:900,marginTop:4,lineHeight:1}}>{fmt(grand)}</div>
+            {revChange!==null&&(
+              <div style={{marginTop:6,display:'flex',alignItems:'center',gap:4}}>
+                <span style={{fontSize:12,fontWeight:800,color:revChange>=0?'#4ade80':'#f87171'}}>{revChange>=0?'▲':'▼'} {Math.abs(revChange)}%</span>
+                <span style={{fontSize:10,color:'rgba(255,255,255,0.45)'}}>vs last month</span>
+              </div>
+            )}
+            <div style={{color:'rgba(255,255,255,0.45)',fontSize:10,marginTop:4}}>{filtered.length} sales · {periodLabel}</div>
+          </div>
+          <div style={{background:'linear-gradient(135deg,#14532d,#16a34a)',borderRadius:14,padding:'14px 16px'}}>
+            <div style={{color:'rgba(255,255,255,0.55)',fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:.5}}>Profit</div>
+            <div style={{color:'#fff',fontSize:22,fontWeight:900,marginTop:4,lineHeight:1}}>{fmt(totalProfit)}</div>
+            <div style={{color:'rgba(255,255,255,0.8)',fontSize:11,fontWeight:700,marginTop:6}}>{margin}% margin</div>
+            {profChange!==null&&<span style={{fontSize:10,color:profChange>=0?'#4ade80':'#f87171',fontWeight:700}}>{profChange>=0?'▲':'▼'} {Math.abs(profChange)}% vs last</span>}
+          </div>
+        </div>
+        {bestSellers.length>0&&(
+          <div style={{background:C.white,borderRadius:14,padding:'14px 16px',marginBottom:12,border:`1px solid ${C.border}`}}>
+            <div style={{fontWeight:800,fontSize:14,color:C.navy,marginBottom:12}}>🔥 Top Sellers — {periodLabel}</div>
+            {bestSellers.map((p,i)=>{
+              const pid=Object.keys(productSales).find(k=>productSales[k].name===p.name);
+              const prod=productMap[pid];
+              const mPct=p.revenue>0&&prod?.costPrice?Math.round(((p.revenue-p.qty*(prod.costPrice||0))/p.revenue)*100):null;
+              return(
+              <div key={p.name} style={{marginBottom:i<bestSellers.length-1?12:0}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:3}}>
+                  <div style={{display:'flex',alignItems:'center',gap:6,flex:1,minWidth:0}}>
+                    <span style={{fontSize:14,flexShrink:0}}>{i===0?'🥇':i===1?'🥈':i===2?'🥉':'  '}</span>
+                    <span style={{fontSize:13,fontWeight:700,color:C.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.name}</span>
+                  </div>
+                  <div style={{display:'flex',gap:6,alignItems:'center',flexShrink:0,marginLeft:8}}>
+                    {mPct!==null&&<span style={{fontSize:10,fontWeight:700,background:mPct>=20?'#dcfce7':'#fef9c3',color:mPct>=20?'#15803d':'#854d0e',borderRadius:4,padding:'1px 5px'}}>{mPct}%</span>}
+                    <span style={{fontSize:12,fontWeight:700,color:C.muted}}>{p.qty} sold</span>
+                  </div>
+                </div>
+                <div style={{background:C.bg,borderRadius:4,height:6,marginBottom:2}}>
+                  <div style={{background:i===0?C.gold:'#93c5fd',borderRadius:4,height:6,width:`${Math.round((p.qty/maxQty)*100)}%`}}/>
+                </div>
+                <div style={{fontSize:10,color:C.muted}}>{fmt(p.revenue)} revenue · <span style={{color:'#16a34a',fontWeight:700}}>{fmt(p.profit)} profit</span></div>
+              </div>
+              );
+            })}
+          </div>
+        )}
+        {slowMovers.length>0&&(
+          <div style={{background:C.white,borderRadius:14,padding:'14px 16px',marginBottom:12,border:`1px solid ${C.border}`}}>
+            <div style={{fontWeight:800,fontSize:14,color:C.amber,marginBottom:10}}>📦 Slow Movers — Not Sold This Period</div>
+            {slowMovers.map((p,i)=>(
+              <div key={p.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 0',borderBottom:i<slowMovers.length-1?`1px solid ${C.border}`:'none'}}>
+                <div>
+                  <div style={{fontSize:13,fontWeight:700,color:C.text}}>{p.name}</div>
+                  <div style={{fontSize:11,color:C.muted}}>{p.stock_qty} in stock</div>
+                </div>
+                <div style={{textAlign:'right'}}>
+                  <div style={{fontSize:12,fontWeight:700,color:C.navy}}>{fmt(p.sellPrice)}</div>
+                  {p.costPrice&&<div style={{fontSize:10,color:C.muted}}>{Math.round(((p.sellPrice-p.costPrice)/p.sellPrice)*100)}% margin</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {suggestions.length>0&&(
+          <div style={{background:C.white,borderRadius:14,padding:'14px 16px',marginBottom:12,border:`1px solid ${C.border}`}}>
+            <div style={{fontWeight:800,fontSize:14,color:C.navyDark,marginBottom:10}}>💡 Suggestions for Next Month</div>
+            {suggestions.map((s,i)=>(
+              <div key={i} style={{display:'flex',gap:10,padding:'9px 0',borderBottom:i<suggestions.length-1?`1px solid ${C.border}`:'none'}}>
+                <span style={{fontSize:18,flexShrink:0}}>{s.icon}</span>
+                <span style={{fontSize:12,color:C.text,lineHeight:1.5}}>{s.text}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {grand===0&&<div style={{color:C.muted,textAlign:'center',padding:'40px 0',fontSize:14}}>{t.noTransactions}</div>}
+      </div>
+      )}
+      {viewMode==='statement'&&(
       <div style={{padding:'12px 14px 0'}}>
 
         {/* Revenue + Profit cards */}
@@ -1812,32 +2144,61 @@ function ReportsScreen({data,t,lang}){
         {byCust.length>0&&(
           <div style={{fontWeight:800,fontSize:13,color:C.muted,textTransform:'uppercase',letterSpacing:.5,marginBottom:8}}>By Customer</div>
         )}
-        {byCust.map(c=>(
-          <Card key={c.id}>
+        {byCust.map(c=>{
+          const allCustTxs=data.transactions.filter(tx=>tx.customerId===c.id);
+          const grp={};
+          allCustTxs.filter(tx=>tx.status==='settled'&&tx.settledAt).forEach(tx=>{
+            const d=new Date(tx.settledAt);
+            const inP=showAll||(d.getMonth()===monthIdx&&d.getFullYear()===year);
+            if(inP){const k=tx.settledAt.slice(0,10)+'_'+(tx.settledMethod||'cash');
+              if(!grp[k])grp[k]={date:tx.settledAt,method:tx.settledMethod||'cash',amount:0};
+              grp[k].amount+=tx.total;}
+          });
+          const credits=Object.values(grp).sort((a,b)=>new Date(a.date)-new Date(b.date));
+          const totalCredit=credits.reduce((s,cr)=>s+cr.amount,0);
+          const ledger=[
+            ...c.txs.map(tx=>({type:'debit',date:tx.date,items:tx.items,amount:tx.total})),
+            ...credits.map(cr=>({type:'credit',date:cr.date,method:cr.method,amount:cr.amount}))
+          ].sort((a,b)=>new Date(a.date)-new Date(b.date));
+          return(
+          <Card key={c.id} style={{marginBottom:10}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
               <div>
                 <div style={{fontWeight:800,fontSize:15}}>{c.name}</div>
                 <div style={{color:C.muted,fontSize:12}}>{c.txs.length} transactions · {c.items} items</div>
               </div>
-              <div style={{fontWeight:900,fontSize:19,color:C.navy}}>{fmt(c.total)}</div>
+              <div style={{textAlign:'right'}}>
+                <div style={{fontWeight:900,fontSize:19,color:C.navy}}>{fmt(c.total)}</div>
+                {totalCredit>0&&<div style={{fontSize:11,fontWeight:700,color:C.success}}>−{fmt(totalCredit)} settled</div>}
+              </div>
             </div>
-            {c.txs.map(tx=>(
-              <div key={tx.id} style={{background:C.bg,borderRadius:8,padding:'8px 10px',marginBottom:6}}>
-                <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
-                  <span style={{fontSize:12,color:C.muted,fontWeight:600}}>{fmtDate(tx.date)}</span>
-                  <span style={{fontSize:13,fontWeight:800,color:tx.status==='open'?C.navy:C.success}}>{fmt(tx.total)}</span>
+            <div style={{display:'grid',gridTemplateColumns:'1fr auto auto',gap:4,padding:'5px 8px',background:C.bg,borderRadius:6,marginBottom:4,fontSize:10,fontWeight:700,color:C.muted,textTransform:'uppercase',letterSpacing:.4}}>
+              <span>Date / Description</span><span style={{textAlign:'right',minWidth:60}}>Debit</span><span style={{textAlign:'right',minWidth:60}}>Credit</span>
+            </div>
+            {ledger.map((row,i)=>(
+              <div key={i} style={{display:'grid',gridTemplateColumns:'1fr auto auto',gap:4,padding:'7px 8px',borderBottom:`1px solid ${C.border}`,alignItems:'start',background:row.type==='credit'?'#F0FDF4':'transparent'}}>
+                <div>
+                  <div style={{fontSize:12,fontWeight:700,color:row.type==='credit'?'#15803d':C.text}}>{fmtDate(row.date)}</div>
+                  {row.type==='debit'
+                    ?<div style={{fontSize:10,color:C.muted}}>{row.items.map(it=>it.name+' ×'+it.qty).join(', ')}</div>
+                    :<div style={{fontSize:10,fontWeight:700,color:'#15803d'}}>{row.method==='salary'?'💼 Salary Deduction':'💵 Cash Payment'}</div>
+                  }
                 </div>
-                {tx.items.map((it,i)=>(
-                  <div key={i} style={{fontSize:11,color:C.muted,display:'flex',justifyContent:'space-between'}}>
-                    <span>{it.name} ×{it.qty}</span><span>{fmt(it.total)}</span>
-                  </div>
-                ))}
+                <span style={{fontSize:12,fontWeight:800,color:C.navy,textAlign:'right',minWidth:60}}>{row.type==='debit'?fmt(row.amount):''}</span>
+                <span style={{fontSize:12,fontWeight:800,color:'#15803d',textAlign:'right',minWidth:60}}>{row.type==='credit'?fmt(row.amount):''}</span>
               </div>
             ))}
+            <div style={{display:'grid',gridTemplateColumns:'1fr auto auto',gap:4,padding:'8px 8px',marginTop:4,background:C.goldLight,borderRadius:8}}>
+              <span style={{fontSize:12,fontWeight:800}}>Total</span>
+              <span style={{fontSize:13,fontWeight:900,color:C.navy,textAlign:'right',minWidth:60}}>{fmt(c.total)}</span>
+              <span style={{fontSize:13,fontWeight:900,color:'#15803d',textAlign:'right',minWidth:60}}>{totalCredit>0?fmt(totalCredit):'—'}</span>
+            </div>
           </Card>
-        ))}
+          );
+        })}
         <div style={{height:30}}/>
       </div>
+      )}
     </div>
   );
 }

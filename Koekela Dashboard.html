@@ -328,7 +328,7 @@ function Overview({data,setData,setSection,setToast}){
   const todayTotal=todayTxs.reduce((s,tx)=>s+tx.total,0);
   const totalOwed=data.customers.reduce((s,c)=>s+c.balance,0);
   const openTxs=data.transactions.filter(tx=>tx.status==='open');
-  const[settleId,setSettleId]=React.useState(null);
+  const[settleMethodId,setSettleMethodId]=React.useState(null);
 
   // Profit & best sellers calculations
   const productMap={};
@@ -348,12 +348,13 @@ function Overview({data,setData,setSection,setToast}){
   const maxQty=bestSellers.length?bestSellers[0].qty:1;
   const todayMargin=todayTotal>0?Math.round((todayProfit/todayTotal)*100):0;
 
-  function settle(id){
+  function settle(id,method){
+    const now=new Date().toISOString();
     const nd={...data,
-      transactions:data.transactions.map(tx=>tx.customerId===id?{...tx,status:'settled'}:tx),
+      transactions:data.transactions.map(tx=>tx.customerId===id&&tx.status==='open'?{...tx,status:'settled',settledAt:now,settledMethod:method}:tx),
       customers:data.customers.map(c=>c.id===id?{...c,balance:0}:c)
     };
-    setData(nd);saveData(nd);setSettleId(null);setToast('Credit settled!');
+    setData(nd);saveData(nd);setSettleMethodId(null);setToast('Credit settled!');
   }
 
   const statCards=[
@@ -382,9 +383,24 @@ function Overview({data,setData,setSection,setToast}){
         <Btn onClick={()=>setSection('stock')} variant='danger' size='sm'>View Stock →</Btn>
       </div>
     );})()}
-    {settleId&&<ConfirmDialog title="Settle Credit"
-        message={`Mark all transactions as paid for ${data.customers.find(c=>c.id===settleId)?.name}? Amount: ${fmt(data.customers.find(c=>c.id===settleId)?.balance)}`}
-        onConfirm={()=>settle(settleId)} onCancel={()=>setSettleId(null)} confirmLabel="Yes, Mark Settled" variant='success'/>}
+    {settleMethodId&&(()=>{const sc=data.customers.find(c=>c.id===settleMethodId);return(
+      <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:4000,display:'flex',alignItems:'center',justifyContent:'center'}} onClick={()=>setSettleMethodId(null)}>
+        <div onClick={e=>e.stopPropagation()} style={{background:'#fff',borderRadius:16,padding:'28px 32px',width:400,boxShadow:'0 12px 40px rgba(0,0,0,0.25)'}}>
+          <div style={{fontWeight:900,fontSize:18,color:C.navyDark,marginBottom:4}}>How is this being settled?</div>
+          <div style={{fontSize:13,color:C.muted,marginBottom:24}}>{fmt(sc?.balance)} outstanding for {sc?.name}</div>
+          <button onClick={()=>settle(settleMethodId,'cash')}
+            style={{width:'100%',background:'#F0FDF4',border:'2px solid #22c55e',borderRadius:12,padding:'14px 18px',marginBottom:12,cursor:'pointer',display:'flex',alignItems:'center',gap:14,textAlign:'left'}}>
+            <span style={{fontSize:28}}>💵</span>
+            <div><div style={{fontWeight:800,fontSize:15,color:'#15803d'}}>Cash Payment</div><div style={{fontSize:12,color:C.muted}}>Customer paid in cash</div></div>
+          </button>
+          <button onClick={()=>settle(settleMethodId,'salary')}
+            style={{width:'100%',background:'#EFF6FF',border:'2px solid #3b82f6',borderRadius:12,padding:'14px 18px',cursor:'pointer',display:'flex',alignItems:'center',gap:14,textAlign:'left'}}>
+            <span style={{fontSize:28}}>💼</span>
+            <div><div style={{fontWeight:800,fontSize:15,color:'#1d4ed8'}}>Salary Deduction</div><div style={{fontSize:12,color:C.muted}}>Deducted from monthly pay</div></div>
+          </button>
+        </div>
+      </div>
+    );})()}
 
       <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:16,marginBottom:24}}>
         {statCards.map(sc=>(
@@ -429,7 +445,7 @@ function Overview({data,setData,setSection,setToast}){
                       <Badge label={open.length+' open'} color={open.length>0?C.amber:C.success}/>
                     </td>
                     <td style={{padding:'12px 16px'}}>
-                      {c.balance>0&&<Btn onClick={()=>setSettleId(c.id)} variant='success' size='sm'>✓ Settle</Btn>}
+                      {c.balance>0&&<Btn onClick={()=>setSettleMethodId(c.id)} variant='success' size='sm'>✓ Settle</Btn>}
                     </td>
                   </tr>
                 );
@@ -506,9 +522,16 @@ function InvoiceView({customer,data,onClose}){
     document.body.classList.add('invoice-open');
     return()=>document.body.classList.remove('invoice-open');
   },[]);
-  const txs=data.transactions.filter(tx=>tx.customerId===customer.id&&tx.status==='open');
-  const allItems=txs.flatMap(tx=>tx.items);
-  const subtotal=allItems.reduce((s,i)=>s+i.total,0);
+  const txs=data.transactions.filter(tx=>tx.customerId===customer.id&&tx.status==='open')
+    .sort((a,b)=>new Date(a.date)-new Date(b.date));
+  const fmtTxDate=d=>new Date(d).toLocaleDateString('en-ZA',{day:'2-digit',month:'short',year:'numeric'});
+  let rowCounter=0;
+  const txRows=[];
+  txs.forEach(tx=>{
+    txRows.push({type:'date',id:'d_'+tx.id,date:tx.date});
+    tx.items.forEach((item,i)=>{rowCounter++;txRows.push({type:'item',key:tx.id+'_'+i,num:rowCounter,...item});});
+  });
+  const subtotal=txRows.filter(r=>r.type==='item').reduce((s,r)=>s+r.total,0);
   const balanceDue=parseFloat(customer.balance||0);
   const th={padding:'12px 14px',fontSize:11,fontWeight:800,color:'#64748B',textTransform:'uppercase',letterSpacing:.5};
   return(
@@ -552,15 +575,17 @@ function InvoiceView({customer,data,onClose}){
             </tr>
           </thead>
           <tbody>
-            {allItems.length===0?(
+            {txRows.length===0?(
               <tr><td colSpan={5} style={{padding:'32px',textAlign:'center',color:'#94A3B8',fontSize:14}}>No outstanding items for this customer</td></tr>
-            ):allItems.map((item,i)=>(
-              <tr key={i} style={{borderBottom:'1px solid #E2E8F0'}}>
-                <td style={{padding:'13px 14px',color:'#94A3B8',fontSize:14}}>{i+1}</td>
-                <td style={{padding:'13px 14px',fontSize:14,fontWeight:600,color:'#1E293B'}}>{item.name}</td>
-                <td style={{padding:'13px 14px',textAlign:'center',fontSize:14,color:'#1E293B'}}>{item.qty}</td>
-                <td style={{padding:'13px 14px',textAlign:'right',fontSize:14,color:'#1E293B'}}>R{parseFloat(item.price).toFixed(2)}</td>
-                <td style={{padding:'13px 14px',textAlign:'right',fontSize:14,fontWeight:700,color:'#1E293B'}}>R{parseFloat(item.total).toFixed(2)}</td>
+            ):txRows.map(row=>row.type==='date'?(
+              <tr key={row.id}><td colSpan={5} style={{padding:'9px 14px',background:'#F8FAFC',fontSize:12,fontWeight:700,color:'#475569',borderBottom:'1px solid #E2E8F0'}}>📅 {fmtTxDate(row.date)}</td></tr>
+            ):(
+              <tr key={row.key} style={{borderBottom:'1px solid #E2E8F0'}}>
+                <td style={{padding:'13px 14px',color:'#94A3B8',fontSize:14}}>{row.num}</td>
+                <td style={{padding:'13px 14px',fontSize:14,fontWeight:600,color:'#1E293B'}}>{row.name}</td>
+                <td style={{padding:'13px 14px',textAlign:'center',fontSize:14,color:'#1E293B'}}>{row.qty}</td>
+                <td style={{padding:'13px 14px',textAlign:'right',fontSize:14,color:'#1E293B'}}>R{parseFloat(row.price).toFixed(2)}</td>
+                <td style={{padding:'13px 14px',textAlign:'right',fontSize:14,fontWeight:700,color:'#1E293B'}}>R{parseFloat(row.total).toFixed(2)}</td>
               </tr>
             ))}
           </tbody>
@@ -640,7 +665,7 @@ function CustomersSection({data,setData,setToast}){
   const [modal,setModal]=React.useState(null);
   const [viewCustomer,setViewCustomer]=React.useState(null);
   const [form,setForm]=React.useState({name:'',phone:''});
-  const [settleConfirm,setSettleConfirm]=React.useState(null);
+  const [settleMethodConfirm,setSettleMethodConfirm]=React.useState(null);
   const [delConfirm,setDelConfirm]=React.useState(null);
   const [delPinModal,setDelPinModal]=React.useState(false);
   const [delTxConfirm,setDelTxConfirm]=React.useState(null);
@@ -666,12 +691,13 @@ function CustomersSection({data,setData,setToast}){
     setData(nd);saveData(nd);setDelConfirm(null);setViewCustomer(null);setToast('Customer deleted');
   }
 
-  function settle(id){
+  function settle(id,method){
+    const now=new Date().toISOString();
     const nd={...data,
-      transactions:data.transactions.map(tx=>tx.customerId===id?{...tx,status:'settled'}:tx),
+      transactions:data.transactions.map(tx=>tx.customerId===id&&tx.status==='open'?{...tx,status:'settled',settledAt:now,settledMethod:method}:tx),
       customers:data.customers.map(c=>c.id===id?{...c,balance:0}:c)
     };
-    setData(nd);saveData(nd);setSettleConfirm(null);setToast('Credit settled!');
+    setData(nd);saveData(nd);setSettleMethodConfirm(null);setToast('Credit settled!');
   }
 
   function deleteTx(txId,amount,custId){
@@ -707,7 +733,24 @@ function CustomersSection({data,setData,setToast}){
     const thisMonthTotal=txs.filter(tx=>{const d=new Date(tx.date);return d.getMonth()===curMon.getMonth()&&d.getFullYear()===curMon.getFullYear();}).reduce((s,tx)=>s+tx.total,0);
     return(
       <div>
-        {settleConfirm&&<ConfirmDialog title="Settle Credit" message={`Mark all as paid for ${cust.name}? Deduct ${fmt(openBal)} from pay.`} onConfirm={()=>settle(cust.id)} onCancel={()=>setSettleConfirm(null)} confirmLabel="Yes, Mark Settled" variant='success'/>}
+        {settleMethodConfirm&&(
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:4000,display:'flex',alignItems:'center',justifyContent:'center'}} onClick={()=>setSettleMethodConfirm(null)}>
+            <div onClick={e=>e.stopPropagation()} style={{background:'#fff',borderRadius:16,padding:'28px 32px',width:400,boxShadow:'0 12px 40px rgba(0,0,0,0.25)'}}>
+              <div style={{fontWeight:900,fontSize:18,color:C.navyDark,marginBottom:4}}>How is this being settled?</div>
+              <div style={{fontSize:13,color:C.muted,marginBottom:24}}>{fmt(openBal)} outstanding for {cust.name}</div>
+              <button onClick={()=>settle(cust.id,'cash')}
+                style={{width:'100%',background:'#F0FDF4',border:'2px solid #22c55e',borderRadius:12,padding:'14px 18px',marginBottom:12,cursor:'pointer',display:'flex',alignItems:'center',gap:14,textAlign:'left'}}>
+                <span style={{fontSize:28}}>💵</span>
+                <div><div style={{fontWeight:800,fontSize:15,color:'#15803d'}}>Cash Payment</div><div style={{fontSize:12,color:C.muted}}>Customer paid in cash</div></div>
+              </button>
+              <button onClick={()=>settle(cust.id,'salary')}
+                style={{width:'100%',background:'#EFF6FF',border:'2px solid #3b82f6',borderRadius:12,padding:'14px 18px',cursor:'pointer',display:'flex',alignItems:'center',gap:14,textAlign:'left'}}>
+                <span style={{fontSize:28}}>💼</span>
+                <div><div style={{fontWeight:800,fontSize:15,color:'#1d4ed8'}}>Salary Deduction</div><div style={{fontSize:12,color:C.muted}}>Deducted from monthly pay</div></div>
+              </button>
+            </div>
+          </div>
+        )}
         {invoiceCustomer&&<InvoiceView customer={invoiceCustomer} data={data} onClose={()=>setInvoiceCustomer(null)}/>}
         {delPinModal&&<PINConfirmModal title="Confirm Deletion" message={`Enter your PIN to permanently delete ${cust.name} and all their transactions.`} onConfirm={()=>{setDelPinModal(false);deleteCustomer(cust.id);}} onCancel={()=>setDelPinModal(false)}/>}
         {delConfirm&&<ConfirmDialog title="Delete Customer" message={`Delete ${cust.name} and ALL their transactions? This cannot be undone.`} onConfirm={()=>deleteCustomer(cust.id)} onCancel={()=>setDelConfirm(null)} confirmLabel="Delete Customer"/>}
@@ -737,7 +780,7 @@ function CustomersSection({data,setData,setToast}){
           <Btn onClick={()=>{setForm({name:cust.name,phone:cust.phone});setModal(cust);}} variant='outline' size='sm'>✏️ Edit</Btn>
           <Btn onClick={()=>setAddTxModal(true)} variant='gold' size='sm'>+ Add Transaction</Btn>
           <Btn onClick={()=>setInvoiceCustomer(cust)} variant='purple' size='sm'>🧾 Invoice</Btn>
-          {openBal>0&&<Btn onClick={()=>setSettleConfirm(true)} variant='success' size='sm'>✓ Settle All</Btn>}
+          {openBal>0&&<Btn onClick={()=>setSettleMethodConfirm(true)} variant='success' size='sm'>✓ Settle All</Btn>}
           <Btn onClick={()=>{const p=localStorage.getItem('koekela_pin');if(p)setDelPinModal(true);else setDelConfirm(true);}} variant='dangerOutline' size='sm'>🗑️ Delete</Btn>
         </div>
 
@@ -817,7 +860,24 @@ function CustomersSection({data,setData,setToast}){
           </div>
         </Modal>
       )}
-      {settleConfirm&&<ConfirmDialog title="Settle Credit" message={`Mark all as paid for ${data.customers.find(c=>c.id===settleConfirm)?.name}?`} onConfirm={()=>settle(settleConfirm)} onCancel={()=>setSettleConfirm(null)} confirmLabel="Yes, Settle" variant='success'/>}
+      {settleMethodConfirm&&typeof settleMethodConfirm==='string'&&(()=>{const sc=data.customers.find(c=>c.id===settleMethodConfirm);return(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:4000,display:'flex',alignItems:'center',justifyContent:'center'}} onClick={()=>setSettleMethodConfirm(null)}>
+          <div onClick={e=>e.stopPropagation()} style={{background:'#fff',borderRadius:16,padding:'28px 32px',width:400,boxShadow:'0 12px 40px rgba(0,0,0,0.25)'}}>
+            <div style={{fontWeight:900,fontSize:18,color:C.navyDark,marginBottom:4}}>How is this being settled?</div>
+            <div style={{fontSize:13,color:C.muted,marginBottom:24}}>{fmt(sc?.balance)} outstanding for {sc?.name}</div>
+            <button onClick={()=>settle(settleMethodConfirm,'cash')}
+              style={{width:'100%',background:'#F0FDF4',border:'2px solid #22c55e',borderRadius:12,padding:'14px 18px',marginBottom:12,cursor:'pointer',display:'flex',alignItems:'center',gap:14,textAlign:'left'}}>
+              <span style={{fontSize:28}}>💵</span>
+              <div><div style={{fontWeight:800,fontSize:15,color:'#15803d'}}>Cash Payment</div><div style={{fontSize:12,color:C.muted}}>Customer paid in cash</div></div>
+            </button>
+            <button onClick={()=>settle(settleMethodConfirm,'salary')}
+              style={{width:'100%',background:'#EFF6FF',border:'2px solid #3b82f6',borderRadius:12,padding:'14px 18px',cursor:'pointer',display:'flex',alignItems:'center',gap:14,textAlign:'left'}}>
+              <span style={{fontSize:28}}>💼</span>
+              <div><div style={{fontWeight:800,fontSize:15,color:'#1d4ed8'}}>Salary Deduction</div><div style={{fontSize:12,color:C.muted}}>Deducted from monthly pay</div></div>
+            </button>
+          </div>
+        </div>
+      );})()}
 
       <SectionHeader title="Customers" action={
         <div style={{display:'flex',gap:10}}>
@@ -845,7 +905,7 @@ function CustomersSection({data,setData,setToast}){
               <div style={{padding:'12px 20px',display:'flex',gap:'6px',flexWrap:'wrap'}}>
                 <Btn onClick={()=>setViewCustomer(c)} variant='outline' size='sm'>📋 View Log</Btn>
                 <Btn onClick={()=>{setForm({name:c.name,phone:c.phone});setModal(c);}} variant='ghost' size='sm'>✏️ Edit</Btn>
-                {c.balance>0&&<Btn onClick={()=>setSettleConfirm(c.id)} variant='success' size='sm'>✓ Settle</Btn>}
+                {c.balance>0&&<Btn onClick={()=>setSettleMethodConfirm(c.id)} variant='success' size='sm'>✓ Settle</Btn>}
               </div>
               <div style={{padding:'0 20px 14px',fontSize:12,color:C.muted}}>
                 {open.length} open · {txs.length} total transactions
@@ -1074,6 +1134,7 @@ function ReportsSection({data}){
   const [year,setYear]=React.useState(curYear);
   const [showAll,setShowAll]=React.useState(false);
   const [custFilter,setCustFilter]=React.useState('all');
+  const [viewMode,setViewMode]=React.useState('statement');
   const years=[curYear-1,curYear,curYear+1];
 
   const filtered=data.transactions.filter(tx=>{
@@ -1107,10 +1168,42 @@ function ReportsSection({data}){
   const margin=grand>0?Math.round((totalProfit/grand)*100):0;
   const label=showAll?'All Time':MONTHS[monthIdx]+' '+year;
 
+  // Previous period for comparison
+  const prevMon=monthIdx===0?11:monthIdx-1;
+  const prevYr=monthIdx===0?year-1:year;
+  const prevFiltered=showAll?[]:data.transactions.filter(tx=>{const d=new Date(tx.date);return d.getMonth()===prevMon&&d.getFullYear()===prevYr;});
+  const prevRevenue=prevFiltered.reduce((s,tx)=>s+tx.total,0);
+  let prevProfit=0;prevFiltered.forEach(tx=>{tx.items.forEach(item=>{prevProfit+=(item.price-(productMap[item.productId]?.costPrice||0))*item.qty;});});
+  const revChange=prevRevenue>0?Math.round(((grand-prevRevenue)/prevRevenue)*100):null;
+  const profChange=prevProfit>0?Math.round(((totalProfit-prevProfit)/prevProfit)*100):null;
+  const soldSet=new Set(filtered.flatMap(tx=>tx.items.map(i=>i.productId)));
+  const slowMovers=data.products.filter(p=>typeof p.stock_qty==='number'&&p.stock_qty>0&&!soldSet.has(p.id)).slice(0,5);
+  const suggestions=[];
+  if(bestSellers.length>0)suggestions.push({icon:'🔥',text:`${bestSellers[0].name} is your top seller — consider ordering more stock`});
+  Object.entries(productSales).forEach(([id,ps])=>{
+    const prod=productMap[id];if(prod&&prod.costPrice&&ps.qty>=2&&ps.revenue>0){
+      const m=Math.round(((ps.revenue-ps.qty*(prod.costPrice||0))/ps.revenue)*100);
+      if(m<15)suggestions.push({icon:'💡',text:`${ps.name} has a thin margin (${m}%) — try raising the price slightly`});}
+  });
+  if(slowMovers.length>0)suggestions.push({icon:'📦',text:`${slowMovers[0].name} is in stock but hasn't sold this period — try a special or bundle`});
+  if(revChange!==null&&revChange>0)suggestions.push({icon:'📈',text:`Revenue is up ${revChange}% vs last month — great momentum!`});
+  if(revChange!==null&&revChange<-10)suggestions.push({icon:'⚠️',text:`Revenue is down ${Math.abs(revChange)}% vs last month — consider running a promotion`});
+
   return(
     <div>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
-        <h2 style={{fontSize:22,fontWeight:900}}>Monthly Report</h2>
+        <div style={{display:'flex',alignItems:'center',gap:12}}>
+          <h2 style={{fontSize:22,fontWeight:900}}>Monthly Report</h2>
+          <div style={{display:'flex',gap:6}}>
+            {[['statement','📋 Statement'],['analytics','📊 Analytics']].map(([m,lbl])=>(
+              <button key={m} onClick={()=>setViewMode(m)}
+                style={{background:viewMode===m?C.navy:'transparent',color:viewMode===m?'#fff':C.muted,
+                  border:`1.5px solid ${viewMode===m?C.navy:C.border}`,borderRadius:8,padding:'6px 14px',fontSize:13,fontWeight:700,cursor:'pointer'}}>
+                {lbl}
+              </button>
+            ))}
+          </div>
+        </div>
         <div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>
           <select value={showAll?'all':monthIdx} onChange={e=>{if(e.target.value==='all'){setShowAll(true);}else{setShowAll(false);setMonthIdx(Number(e.target.value));}}}
             style={{background:C.white,border:`1.5px solid ${C.border}`,borderRadius:9,padding:'9px 12px',fontSize:13,outline:'none'}}>
@@ -1130,6 +1223,94 @@ function ReportsSection({data}){
         </div>
       </div>
 
+      {viewMode==='analytics'&&(
+        <div style={{marginTop:8}}>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginBottom:20}}>
+            <div style={{background:`linear-gradient(135deg,${C.navyDark},${C.navy})`,borderRadius:16,padding:'20px 28px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div>
+                <div style={{color:'rgba(255,255,255,0.6)',fontSize:13,fontWeight:600,marginBottom:4}}>{label} · Revenue</div>
+                <div style={{color:'#fff',fontSize:36,fontWeight:900}}>{fmt(grand)}</div>
+                {revChange!==null&&(
+                  <div style={{marginTop:8,display:'flex',alignItems:'center',gap:8}}>
+                    <span style={{fontSize:16,fontWeight:800,color:revChange>=0?'#4ade80':'#f87171'}}>{revChange>=0?'▲':'▼'} {Math.abs(revChange)}%</span>
+                    <span style={{fontSize:12,color:'rgba(255,255,255,0.5)'}}>vs {MONTHS[prevMon]} {prevYr}</span>
+                  </div>
+                )}
+              </div>
+              <div style={{textAlign:'right',color:'rgba(255,255,255,0.7)',fontSize:13}}>
+                <div style={{marginBottom:4}}>{filtered.length} transactions</div>
+                <div>{byCust.length} customers</div>
+              </div>
+            </div>
+            <div style={{background:'linear-gradient(135deg,#065f46,#059669)',borderRadius:16,padding:'20px 28px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div>
+                <div style={{color:'rgba(255,255,255,0.6)',fontSize:13,fontWeight:600,marginBottom:4}}>{label} · Profit</div>
+                <div style={{color:'#fff',fontSize:36,fontWeight:900}}>{fmt(totalProfit)}</div>
+                <div style={{color:'#6ee7b7',fontSize:13,fontWeight:700,marginTop:4}}>{margin}% profit margin</div>
+                {profChange!==null&&<span style={{fontSize:12,color:profChange>=0?'#4ade80':'#f87171',fontWeight:700}}>{profChange>=0?'▲':'▼'} {Math.abs(profChange)}% vs last month</span>}
+              </div>
+              <span style={{fontSize:40,opacity:.4}}>💰</span>
+            </div>
+          </div>
+          {bestSellers.length>0&&(
+            <Card style={{marginBottom:20,padding:'16px 24px'}}>
+              <div style={{fontWeight:800,fontSize:16,marginBottom:16}}>🔥 Top Sellers — {label}</div>
+              {bestSellers.map((p,i)=>{
+                const pid=Object.keys(productSales).find(k=>productSales[k].name===p.name);
+                const prod=productMap[pid];
+                const mPct=p.revenue>0&&prod?.costPrice?Math.round(((p.revenue-p.qty*(prod.costPrice||0))/p.revenue)*100):null;
+                return(
+                <div key={p.name} style={{marginBottom:i<bestSellers.length-1?14:0}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
+                    <div style={{display:'flex',alignItems:'center',gap:8}}>
+                      <span style={{fontSize:15}}>{i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}.`}</span>
+                      <span style={{fontSize:14,fontWeight:700,color:C.text}}>{p.name}</span>
+                    </div>
+                    <div style={{display:'flex',gap:10,alignItems:'center'}}>
+                      {mPct!==null&&<span style={{fontSize:12,fontWeight:700,background:mPct>=20?'#dcfce7':'#fef9c3',color:mPct>=20?'#15803d':'#854d0e',borderRadius:6,padding:'2px 8px'}}>{mPct}% margin</span>}
+                      <span style={{fontSize:13,fontWeight:700,color:C.muted}}>{p.qty} sold · {fmt(p.profit)} profit</span>
+                    </div>
+                  </div>
+                  <div style={{background:C.bg,borderRadius:4,height:7,marginBottom:3}}>
+                    <div style={{background:i===0?C.gold:'#93c5fd',borderRadius:4,height:7,width:`${Math.round((p.qty/maxQty)*100)}%`}}/>
+                  </div>
+                  <div style={{fontSize:11,color:C.muted}}>{fmt(p.revenue)} revenue</div>
+                </div>
+                );
+              })}
+            </Card>
+          )}
+          {slowMovers.length>0&&(
+            <Card style={{marginBottom:20,padding:'16px 24px'}}>
+              <div style={{fontWeight:800,fontSize:16,color:C.amber,marginBottom:14}}>📦 Slow Movers — In Stock, Not Sold This Period</div>
+              <table style={{width:'100%',borderCollapse:'collapse'}}>
+                <thead><tr>{['Product','Stock','Sell Price','Margin'].map(h=><th key={h} style={{padding:'8px 12px',textAlign:'left',fontSize:11,fontWeight:800,color:C.muted,textTransform:'uppercase',borderBottom:`1px solid ${C.border}`}}>{h}</th>)}</tr></thead>
+                <tbody>{slowMovers.map((p,i)=>(
+                  <tr key={p.id} style={{borderBottom:`1px solid ${C.border}`,background:i%2?C.bg:'transparent'}}>
+                    <td style={{padding:'10px 12px',fontWeight:700,fontSize:14}}>{p.name}</td>
+                    <td style={{padding:'10px 12px',fontSize:13,color:C.amber,fontWeight:700}}>{p.stock_qty}</td>
+                    <td style={{padding:'10px 12px',fontSize:13,fontWeight:700,color:C.navy}}>{fmt(p.sellPrice)}</td>
+                    <td style={{padding:'10px 12px',fontSize:13,color:C.success,fontWeight:700}}>{p.costPrice?Math.round(((p.sellPrice-p.costPrice)/p.sellPrice)*100)+'%':'—'}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </Card>
+          )}
+          {suggestions.length>0&&(
+            <Card style={{marginBottom:20,padding:'16px 24px'}}>
+              <div style={{fontWeight:800,fontSize:16,marginBottom:14}}>💡 Suggestions for Next Month</div>
+              {suggestions.map((s,i)=>(
+                <div key={i} style={{display:'flex',gap:14,padding:'12px 0',borderBottom:i<suggestions.length-1?`1px solid ${C.border}`:'none',alignItems:'flex-start'}}>
+                  <span style={{fontSize:22,flexShrink:0}}>{s.icon}</span>
+                  <span style={{fontSize:14,color:C.text,lineHeight:1.6}}>{s.text}</span>
+                </div>
+              ))}
+            </Card>
+          )}
+          {grand===0&&<div style={{textAlign:'center',color:C.muted,padding:'40px 0',fontSize:16}}>No transactions for this period</div>}
+        </div>
+      )}
+      {viewMode==='statement'&&(<>
       {/* Revenue + Profit summary cards */}
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginBottom:20}}>
         <div style={{background:`linear-gradient(135deg,${C.navyDark},${C.navy})`,borderRadius:16,padding:'20px 28px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
@@ -1177,7 +1358,23 @@ function ReportsSection({data}){
       )}
 
       {byCust.length===0&&<div style={{textAlign:'center',color:C.muted,padding:'40px 0',fontSize:16}}>No transactions for this period</div>}
-      {byCust.map(c=>(
+      {byCust.map(c=>{
+        const allCustTxs=data.transactions.filter(tx=>tx.customerId===c.id);
+        const grp={};
+        allCustTxs.filter(tx=>tx.status==='settled'&&tx.settledAt).forEach(tx=>{
+          const d=new Date(tx.settledAt);
+          const inP=showAll||(d.getMonth()===monthIdx&&d.getFullYear()===year);
+          if(inP){const k=tx.settledAt.slice(0,10)+'_'+(tx.settledMethod||'cash');
+            if(!grp[k])grp[k]={date:tx.settledAt,method:tx.settledMethod||'cash',amount:0};
+            grp[k].amount+=tx.total;}
+        });
+        const credits=Object.values(grp).sort((a,b)=>new Date(a.date)-new Date(b.date));
+        const totalCredit=credits.reduce((s,cr)=>s+cr.amount,0);
+        const ledger=[
+          ...c.txs.map(tx=>({type:'debit',date:tx.date,items:tx.items,amount:tx.total})),
+          ...credits.map(cr=>({type:'credit',date:cr.date,method:cr.method,amount:cr.amount}))
+        ].sort((a,b)=>new Date(a.date)-new Date(b.date));
+        return(
         <div key={c.id} className="print-page">
           <Card style={{marginBottom:16,padding:0,overflow:'hidden'}}>
             <div style={{background:C.bg,padding:'14px 20px',borderBottom:`2px solid ${C.navy}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
@@ -1193,34 +1390,39 @@ function ReportsSection({data}){
             <table style={{width:'100%',borderCollapse:'collapse'}}>
               <thead>
                 <tr>
-                  {['Date','Items','Amount','Status'].map(h=>(
-                    <th key={h} style={{padding:'10px 20px',textAlign:'left',fontSize:11,fontWeight:800,color:C.muted,textTransform:'uppercase',borderBottom:`1px solid ${C.border}`}}>{h}</th>
+                  {['Date','Description','Debit','Credit'].map(h=>(
+                    <th key={h} style={{padding:'10px 20px',textAlign:['Debit','Credit'].includes(h)?'right':'left',fontSize:11,fontWeight:800,color:C.muted,textTransform:'uppercase',borderBottom:`1px solid ${C.border}`}}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {c.txs.map((tx,i)=>(
-                  <tr key={tx.id} style={{borderBottom:`1px solid ${C.border}`,background:i%2?C.bg:'transparent'}}>
-                    <td style={{padding:'12px 20px',fontWeight:600,fontSize:13}}>{fmtDate(tx.date)}</td>
-                    <td style={{padding:'12px 20px',fontSize:12,color:C.muted}}>
-                      {tx.items.map((it,j)=><div key={j}>{it.name} ×{it.qty} = {fmt(it.total)}</div>)}
+                {ledger.map((row,i)=>(
+                  <tr key={i} style={{borderBottom:`1px solid ${C.border}`,background:row.type==='credit'?'#F0FDF4':i%2?C.bg:'transparent'}}>
+                    <td style={{padding:'11px 20px',fontWeight:600,fontSize:13,whiteSpace:'nowrap'}}>{fmtDate(row.date)}</td>
+                    <td style={{padding:'11px 20px',fontSize:12,color:C.muted}}>
+                      {row.type==='debit'
+                        ?row.items.map((it,j)=><div key={j}>{it.name} ×{it.qty} = {fmt(it.total)}</div>)
+                        :<span style={{fontWeight:700,color:'#15803d'}}>{row.method==='salary'?'💼 Salary Deduction':'💵 Cash Payment'}</span>
+                      }
                     </td>
-                    <td style={{padding:'12px 20px',fontWeight:800,fontSize:16,color:C.navy}}>{fmt(tx.total)}</td>
-                    <td style={{padding:'12px 20px'}}><Badge label={tx.status==='open'?'Outstanding':'Settled'} color={tx.status==='open'?C.amber:C.success}/></td>
+                    <td style={{padding:'11px 20px',textAlign:'right',fontWeight:800,fontSize:15,color:C.navy}}>{row.type==='debit'?fmt(row.amount):''}</td>
+                    <td style={{padding:'11px 20px',textAlign:'right',fontWeight:800,fontSize:15,color:'#15803d'}}>{row.type==='credit'?fmt(row.amount):''}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr style={{background:C.goldLight}}>
                   <td colSpan={2} style={{padding:'12px 20px',fontWeight:800,fontSize:15}}>Total for {c.name} — {label}</td>
-                  <td style={{padding:'12px 20px',fontWeight:900,fontSize:20,color:C.navy}}>{fmt(c.total)}</td>
-                  <td/>
+                  <td style={{padding:'12px 20px',textAlign:'right',fontWeight:900,fontSize:20,color:C.navy}}>{fmt(c.total)}</td>
+                  <td style={{padding:'12px 20px',textAlign:'right',fontWeight:900,fontSize:20,color:'#15803d'}}>{totalCredit>0?fmt(totalCredit):'—'}</td>
                 </tr>
               </tfoot>
             </table>
           </Card>
         </div>
-      ))}
+        );
+      })}
+      </>)}
     </div>
   );
 }
