@@ -1,4 +1,4 @@
-const CACHE = 'koekela-v8';
+const CACHE = 'koekela-v11';
 const PRECACHE = [
   './Koekela%20App.html',
   './Koekela%20Dashboard.html',

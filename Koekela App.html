@@ -32,6 +32,15 @@
   /* Lock app to exactly the visible viewport on mobile — most reliable approach */
   .mobile-app-root{position:fixed;top:0;left:0;right:0;bottom:0;overflow:hidden;}
   @media(max-width:430px){body{overflow:hidden;height:100%;}}
+  @media print{
+    body.invoice-open *{visibility:hidden;}
+    body.invoice-open .invoice-print-area,
+    body.invoice-open .invoice-print-area *{visibility:visible;}
+    body.invoice-open .invoice-print-area{
+      position:fixed;top:0;left:0;width:100%;
+      padding:24px;background:#fff;box-shadow:none!important;border-radius:0!important;
+    }
+  }
 </style>
 <script>
   if('serviceWorker' in navigator){
@@ -307,10 +316,21 @@ function _persist(d){
 function saveData(d){
   _persist(d);
   try{new BroadcastChannel('koekela_sync').postMessage({type:'update',data:d});}catch(e){}
-  saveToCloud(d).catch(()=>{});
+  if(getSBConfig().shopId){
+    saveToCloud(d)
+      .then(()=>window.dispatchEvent(new CustomEvent('koekela_cloud_ok')))
+      .catch(()=>window.dispatchEvent(new CustomEvent('koekela_cloud_fail')));
+  }
 }
 
 function markBackup(){localStorage.setItem('koekela_last_backup',Date.now().toString());}
+function getShopInfo(){
+  return{
+    name:localStorage.getItem('koekela_shop_name')||'Koekela Spaza Shop',
+    address:localStorage.getItem('koekela_shop_address')||'',
+    email:localStorage.getItem('koekela_shop_email')||''
+  };
+}
 
 // ─────────────────────────────────────────────────────────────
 // CLOUD SYNC — Supabase
@@ -534,25 +554,46 @@ function BarcodeScanner({onScan,onClose,t}){
 }
 
 // ─────────────────────────────────────────────────────────────
-// BACKUP BANNER
+// SYNC STATUS BANNER
+// Smart banner: red warning when Supabase is configured but
+// offline (saveToCloud just failed), classic reminder when no
+// Supabase is set up, silent when cloud is syncing normally.
 // ─────────────────────────────────────────────────────────────
-function BackupBanner({onBackup,lastBackup}){
-  const [dismissed,setDismissed]=React.useState(false);
+function SyncStatusBanner({cloudStatus,onBackup,lastBackup}){
+  const[dismissed,setDismissed]=React.useState(false);
   if(dismissed)return null;
-  const needed=!lastBackup||(Date.now()-parseInt(lastBackup)>24*60*60*1000);
-  if(!needed)return null;
-  const lastStr=lastBackup?new Date(parseInt(lastBackup)).toLocaleDateString('en-ZA'):'Never';
-  return(
-    <div style={{background:C.purple,margin:'12px 16px 0',borderRadius:12,padding:'10px 14px',display:'flex',alignItems:'center',gap:10,animation:'fadeIn .3s ease'}}>
-      <span style={{fontSize:18}}>⚠️</span>
-      <div style={{flex:1,color:'#fff'}}>
-        <div style={{fontWeight:800,fontSize:13}}>Backup Recommended</div>
-        <div style={{fontSize:11,opacity:.8}}>Last backup: {lastStr}</div>
+  const sbConfigured=!!getSBConfig().shopId;
+
+  if(sbConfigured&&cloudStatus==='fail'){
+    return(
+      <div style={{background:'#7f1d1d',margin:'12px 16px 0',borderRadius:12,padding:'10px 14px',display:'flex',alignItems:'center',gap:10,animation:'fadeIn .3s ease'}}>
+        <span style={{fontSize:18}}>📵</span>
+        <div style={{flex:1,color:'#fff'}}>
+          <div style={{fontWeight:800,fontSize:13}}>Cloud Sync Offline</div>
+          <div style={{fontSize:11,opacity:.8}}>Weak signal — download a local backup now</div>
+        </div>
+        <Btn onClick={onBackup} variant='gold' small style={{flexShrink:0}}>Backup</Btn>
+        <button onClick={()=>setDismissed(true)} style={{background:'none',border:'none',color:'rgba(255,255,255,0.7)',cursor:'pointer',fontSize:20,lineHeight:1,paddingLeft:2}}>✕</button>
       </div>
-      <Btn onClick={onBackup} variant='gold' small style={{flexShrink:0}}>Backup Now</Btn>
-      <button onClick={()=>setDismissed(true)} style={{background:'none',border:'none',color:'rgba(255,255,255,0.7)',cursor:'pointer',fontSize:20,lineHeight:1,paddingLeft:2}}>✕</button>
-    </div>
-  );
+    );
+  }
+  if(!sbConfigured){
+    const needed=!lastBackup||(Date.now()-parseInt(lastBackup)>24*60*60*1000);
+    if(!needed)return null;
+    const lastStr=lastBackup?new Date(parseInt(lastBackup)).toLocaleDateString('en-ZA'):'Never';
+    return(
+      <div style={{background:C.purple,margin:'12px 16px 0',borderRadius:12,padding:'10px 14px',display:'flex',alignItems:'center',gap:10,animation:'fadeIn .3s ease'}}>
+        <span style={{fontSize:18}}>⚠️</span>
+        <div style={{flex:1,color:'#fff'}}>
+          <div style={{fontWeight:800,fontSize:13}}>Backup Recommended</div>
+          <div style={{fontSize:11,opacity:.8}}>Last backup: {lastStr}</div>
+        </div>
+        <Btn onClick={onBackup} variant='gold' small style={{flexShrink:0}}>Backup Now</Btn>
+        <button onClick={()=>setDismissed(true)} style={{background:'none',border:'none',color:'rgba(255,255,255,0.7)',cursor:'pointer',fontSize:20,lineHeight:1,paddingLeft:2}}>✕</button>
+      </div>
+    );
+  }
+  return null; // Supabase configured + working → no banner
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -749,7 +790,7 @@ function TabBar({tab,setTab,t}){
 // ─────────────────────────────────────────────────────────────
 // HOME
 // ─────────────────────────────────────────────────────────────
-function HomeScreen({data,setData,setTab,t,lang,onOpenSettings,onBackup,lastBackup}){
+function HomeScreen({data,setData,setTab,t,lang,onOpenSettings,onBackup,lastBackup,cloudStatus}){
   const todayStr=new Date().toISOString().slice(0,10);
   const todayTxs=data.transactions.filter(tx=>tx.date.slice(0,10)===todayStr);
   const todayTotal=todayTxs.reduce((s,tx)=>s+tx.total,0);
@@ -758,7 +799,7 @@ function HomeScreen({data,setData,setTab,t,lang,onOpenSettings,onBackup,lastBack
 
   return(
     <div style={{height:'100%',overflow:'auto',background:C.bg}}>
-      <BackupBanner onBackup={onBackup} lastBackup={lastBackup}/>
+      <SyncStatusBanner cloudStatus={cloudStatus} onBackup={onBackup} lastBackup={lastBackup}/>
       <div style={{background:`linear-gradient(160deg,${C.navyDark} 0%,${C.navy} 100%)`,padding:'14px 16px 20px',marginTop:12}}>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
           <div style={{background:'rgba(255,255,255,0.12)',borderRadius:14,padding:'14px'}}>
@@ -1324,8 +1365,164 @@ function SaleScreen({data,setData,t,lang,setTab}){
 }
 
 // ─────────────────────────────────────────────────────────────
+// PIN CONFIRM MODAL — used before destructive actions
+// ─────────────────────────────────────────────────────────────
+function PINConfirmModal({title,message,onConfirm,onCancel}){
+  const[digits,setDigits]=React.useState([]);
+  const[shake,setShake]=React.useState(false);
+  const[err,setErr]=React.useState('');
+  const stored=localStorage.getItem('koekela_pin');
+
+  function press(d){
+    if(digits.length>=4)return;
+    const next=[...digits,d];
+    setDigits(next);
+    if(next.length===4){
+      if(simpleHash(next.join(''))===stored){
+        onConfirm();
+      } else {
+        setShake(true);setErr('Wrong PIN — try again');
+        setTimeout(()=>{setShake(false);setDigits([]);setErr('');},700);
+      }
+    }
+  }
+  function del(){setDigits(d=>d.slice(0,-1));setErr('');}
+
+  return(
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.65)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
+      <div style={{background:C.white,borderRadius:22,padding:'26px 22px',width:'100%',maxWidth:310,boxShadow:'0 20px 60px rgba(0,0,0,0.3)'}}>
+        <div style={{textAlign:'center',marginBottom:18}}>
+          <div style={{fontSize:28,marginBottom:8}}>🔒</div>
+          <div style={{fontWeight:900,fontSize:16,color:C.navy,marginBottom:4}}>{title}</div>
+          <div style={{fontSize:13,color:C.muted,lineHeight:1.4}}>{message}</div>
+        </div>
+        <div style={{display:'flex',justifyContent:'center',gap:14,marginBottom:6,animation:shake?'shake .5s ease':'none'}}>
+          {[0,1,2,3].map(i=>(
+            <div key={i} style={{width:16,height:16,borderRadius:'50%',
+              background:digits.length>i?C.navy:'transparent',
+              border:`2.5px solid ${digits.length>i?C.navy:C.border}`,transition:'background .15s'}}/>
+          ))}
+        </div>
+        {err&&<div style={{textAlign:'center',color:C.danger,fontSize:12,marginBottom:6,fontWeight:700}}>{err}</div>}
+        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,margin:'14px 0 12px'}}>
+          {[1,2,3,4,5,6,7,8,9,'',0,'⌫'].map((k,i)=>(
+            k===''?<div key={i}/>:
+            <button key={i} onClick={()=>k==='⌫'?del():press(String(k))}
+              className="pin-btn"
+              style={{padding:'15px 0',borderRadius:13,border:'none',
+                background:k==='⌫'?C.bg:`${C.navy}`,
+                color:k==='⌫'?C.text:'#fff',fontSize:20,fontWeight:800,cursor:'pointer'}}>
+              {k}
+            </button>
+          ))}
+        </div>
+        <Btn onClick={onCancel} variant='outline' style={{width:'100%',marginTop:2}}>Cancel</Btn>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // CUSTOMERS
 // ─────────────────────────────────────────────────────────────
+// ─── INVOICE VIEW (mobile) ────────────────────────────
+function InvoiceView({customer,data,onClose}){
+  const shop=getShopInfo();
+  const[invNum]=React.useState(()=>{
+    const n=parseInt(localStorage.getItem('koekela_inv_counter')||'0')+1;
+    localStorage.setItem('koekela_inv_counter',String(n));
+    return'INV'+String(n).padStart(4,'0');
+  });
+  const invDate=new Date().toLocaleDateString('en-ZA',{day:'2-digit',month:'2-digit',year:'numeric'});
+  React.useEffect(()=>{
+    document.body.classList.add('invoice-open');
+    return()=>document.body.classList.remove('invoice-open');
+  },[]);
+  const txs=data.transactions.filter(tx=>tx.customerId===customer.id&&tx.status==='open');
+  const allItems=txs.flatMap(tx=>tx.items);
+  const subtotal=allItems.reduce((s,i)=>s+i.total,0);
+  const balanceDue=parseFloat(customer.balance||0);
+  return(
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.82)',zIndex:5000,display:'flex',flexDirection:'column',overflow:'auto'}}>
+      {/* Action bar */}
+      <div style={{display:'flex',gap:10,padding:'14px 16px',flexShrink:0}}>
+        <button onClick={onClose}
+          style={{background:'rgba(255,255,255,0.15)',border:'none',color:'#fff',borderRadius:10,padding:'10px 18px',fontSize:14,fontWeight:700,cursor:'pointer'}}>
+          ✕ Close
+        </button>
+        <button onClick={()=>window.print()}
+          style={{flex:1,background:C.gold,border:'none',color:C.navyDark,borderRadius:10,padding:'10px 18px',fontSize:14,fontWeight:800,cursor:'pointer'}}>
+          🖨️ Print / Save PDF
+        </button>
+      </div>
+      {/* Invoice paper */}
+      <div className="invoice-print-area" style={{background:'#fff',margin:'0 12px 24px',borderRadius:16,padding:'28px 24px',fontFamily:"'Nunito',sans-serif",color:'#1E293B',boxShadow:'0 8px 40px rgba(0,0,0,0.3)'}}>
+        {/* Header */}
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:24,paddingBottom:18,borderBottom:'2px solid #E2E8F0'}}>
+          <div>
+            <div style={{fontSize:16,fontWeight:900,color:'#0f2743'}}>{shop.name}</div>
+            {shop.address&&<div style={{fontSize:12,color:'#64748B',marginTop:3}}>{shop.address}</div>}
+            {shop.email&&<div style={{fontSize:12,color:'#64748B',marginTop:2}}>{shop.email}</div>}
+          </div>
+          <div style={{textAlign:'right'}}>
+            <div style={{fontSize:20,fontWeight:900,color:'#0f2743'}}>INVOICE</div>
+            <div style={{fontSize:12,color:'#64748B',marginTop:4}}>#{invNum}</div>
+            <div style={{fontSize:12,color:'#64748B'}}>Date: {invDate}</div>
+          </div>
+        </div>
+        {/* Bill To */}
+        <div style={{marginBottom:20}}>
+          <span style={{fontSize:13,fontWeight:800,color:'#1E293B'}}>Bill To: </span>
+          <span style={{fontSize:14,fontWeight:900,color:'#0f2743'}}>{customer.name}</span>
+          {customer.phone&&<div style={{fontSize:12,color:'#64748B',marginTop:3}}>{customer.phone}</div>}
+        </div>
+        {/* Items table */}
+        <table style={{width:'100%',borderCollapse:'collapse',marginBottom:20,fontSize:12}}>
+          <thead>
+            <tr style={{background:'#F1F5F9'}}>
+              {['#','Item','Qty','Price','Total'].map((h,i)=>(
+                <th key={h} style={{padding:'9px 8px',textAlign:i>=2?'right':i===0?'center':'left',fontSize:11,fontWeight:800,color:'#64748B',textTransform:'uppercase'}}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {allItems.length===0?(
+              <tr><td colSpan={5} style={{padding:'20px',textAlign:'center',color:'#94A3B8',fontSize:13}}>No outstanding items</td></tr>
+            ):allItems.map((item,i)=>(
+              <tr key={i} style={{borderBottom:'1px solid #E2E8F0'}}>
+                <td style={{padding:'10px 8px',textAlign:'center',color:'#94A3B8'}}>{i+1}</td>
+                <td style={{padding:'10px 8px',fontWeight:600,color:'#1E293B'}}>{item.name}</td>
+                <td style={{padding:'10px 8px',textAlign:'right'}}>{item.qty}</td>
+                <td style={{padding:'10px 8px',textAlign:'right'}}>R{parseFloat(item.price).toFixed(2)}</td>
+                <td style={{padding:'10px 8px',textAlign:'right',fontWeight:700}}>R{parseFloat(item.total).toFixed(2)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {/* Totals */}
+        <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:6}}>
+          <div style={{display:'flex',justifyContent:'space-between',width:220,padding:'8px 0',borderBottom:'1px solid #E2E8F0'}}>
+            <span style={{fontSize:13,color:'#64748B',fontWeight:600}}>Subtotal</span>
+            <span style={{fontSize:13,fontWeight:700}}>R{subtotal.toFixed(2)}</span>
+          </div>
+          <div style={{display:'flex',justifyContent:'space-between',width:220,padding:'8px 0',borderBottom:'1px solid #E2E8F0'}}>
+            <span style={{fontSize:13,color:'#64748B',fontWeight:600}}>Total</span>
+            <span style={{fontSize:13,fontWeight:700}}>R{subtotal.toFixed(2)}</span>
+          </div>
+          <div style={{display:'flex',justifyContent:'space-between',width:220,padding:'12px 14px',background:'#F1F5F9',borderRadius:8,marginTop:4}}>
+            <span style={{fontSize:14,fontWeight:900,color:'#0f2743'}}>Balance Due</span>
+            <span style={{fontSize:15,fontWeight:900,color:'#0f2743'}}>R{balanceDue.toFixed(2)}</span>
+          </div>
+        </div>
+        {/* Footer */}
+        <div style={{marginTop:32,paddingTop:16,borderTop:'1px solid #E2E8F0',textAlign:'center',color:'#94A3B8',fontSize:12}}>
+          Thank you for your business!
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CustomersScreen({data,setData,t,lang}){
   const [selected,setSelected]=React.useState(null);
   const [addModal,setAddModal]=React.useState(false);
@@ -1335,6 +1532,8 @@ function CustomersScreen({data,setData,t,lang}){
   const [settleConfirm,setSettleConfirm]=React.useState(false);
   const [delTxConfirm,setDelTxConfirm]=React.useState(null);
   const [delCustConfirm,setDelCustConfirm]=React.useState(false);
+  const [delPinModal,setDelPinModal]=React.useState(false);
+  const [invoiceCustomer,setInvoiceCustomer]=React.useState(null);
 
   function saveCustomer(){
     if(!form.name.trim())return;
@@ -1381,12 +1580,17 @@ function CustomersScreen({data,setData,t,lang}){
         {toast&&<Toast msg={toast} onDone={()=>setToast('')}/>}
         {settleConfirm&&<ConfirmDialog title={t.settle} message={`${t.settleConfirm} (${fmt(openBalance)})`} onConfirm={()=>settleAll(cust.id)} onCancel={()=>setSettleConfirm(false)} confirmLabel={t.yesSettle} danger={false}/>}
         {delTxConfirm&&<ConfirmDialog title={t.deleteTransaction} message={`${fmtDate(delTxConfirm.date)} — ${fmt(delTxConfirm.total)}`} onConfirm={()=>deleteTx(delTxConfirm.id,delTxConfirm.total,cust.id)} onCancel={()=>setDelTxConfirm(null)} confirmLabel={t.deleteTransaction}/>}
+        {invoiceCustomer&&<InvoiceView customer={invoiceCustomer} data={data} onClose={()=>setInvoiceCustomer(null)}/>}
+        {delPinModal&&<PINConfirmModal title="Confirm Deletion" message={`Enter your PIN to permanently delete ${cust.name} and all their transactions`} onConfirm={()=>{setDelPinModal(false);deleteCustomer(cust.id);}} onCancel={()=>setDelPinModal(false)}/>}
         {delCustConfirm&&<ConfirmDialog title={t.deleteCustomer} message={t.deleteCustomerConfirm} onConfirm={()=>deleteCustomer(cust.id)} onCancel={()=>setDelCustConfirm(false)} confirmLabel={t.deleteCustomer}/>}
 
         <div style={{background:C.navy,padding:'10px 14px 16px',flexShrink:0}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
             <button onClick={()=>setSelected(null)} style={{background:'rgba(255,255,255,0.15)',border:'none',color:'#fff',borderRadius:8,padding:'7px 14px',fontSize:12,fontWeight:700,cursor:'pointer'}}>‹ {t.back}</button>
-            <button onClick={()=>openEdit(cust)} style={{background:'rgba(255,255,255,0.15)',border:'none',color:'#fff',borderRadius:8,padding:'7px 14px',fontSize:12,fontWeight:700,cursor:'pointer'}}>✏️ {t.edit}</button>
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={()=>setInvoiceCustomer(cust)} style={{background:C.gold,border:'none',color:C.navyDark,borderRadius:8,padding:'7px 14px',fontSize:12,fontWeight:700,cursor:'pointer'}}>🧾 Invoice</button>
+              <button onClick={()=>openEdit(cust)} style={{background:'rgba(255,255,255,0.15)',border:'none',color:'#fff',borderRadius:8,padding:'7px 14px',fontSize:12,fontWeight:700,cursor:'pointer'}}>✏️ {t.edit}</button>
+            </div>
           </div>
           <div style={{color:'rgba(255,255,255,0.6)',fontSize:12}}>{cust.phone||'No phone'}</div>
           <div style={{color:'#fff',fontSize:22,fontWeight:900}}>{cust.name}</div>
@@ -1429,7 +1633,7 @@ function CustomersScreen({data,setData,t,lang}){
         </div>
 
         <div style={{padding:'10px 14px 12px',borderTop:`1px solid ${C.border}`,background:C.white,flexShrink:0}}>
-          <Btn onClick={()=>setDelCustConfirm(true)} variant='dangerOutline' style={{width:'100%'}}>🗑️ {t.deleteCustomer}: {cust.name}</Btn>
+          <Btn onClick={()=>{const p=localStorage.getItem('koekela_pin');if(p)setDelPinModal(true);else setDelCustConfirm(true);}} variant='dangerOutline' style={{width:'100%'}}>🗑️ {t.deleteCustomer}: {cust.name}</Btn>
         </div>
 
         {editModal&&(
@@ -1498,11 +1702,13 @@ function ReportsScreen({data,t,lang}){
   const[monthIdx,setMonthIdx]=React.useState(new Date().getMonth());
   const[year,setYear]=React.useState(curYear);
   const[showAll,setShowAll]=React.useState(false);
+  const[custFilter,setCustFilter]=React.useState('all');
   const years=[curYear-1,curYear,curYear+1];
 
   const filtered=data.transactions.filter(tx=>{
-    if(showAll)return true;
-    const d=new Date(tx.date);return d.getMonth()===monthIdx&&d.getFullYear()===year;
+    const dateOk=showAll||(()=>{const d=new Date(tx.date);return d.getMonth()===monthIdx&&d.getFullYear()===year;})();
+    const custOk=custFilter==='all'||tx.customerId===custFilter;
+    return dateOk&&custOk;
   });
 
   // Build product map for cost price lookup
@@ -1539,9 +1745,9 @@ function ReportsScreen({data,t,lang}){
 
   return(
     <div style={{height:'100%',overflow:'auto',background:C.bg}}>
-      {/* Period filter */}
+      {/* Period + customer filters */}
       <div style={{padding:'8px 14px',background:C.white,borderBottom:`1px solid ${C.border}`}}>
-        <div style={{display:'flex',gap:8}}>
+        <div style={{display:'flex',gap:8,marginBottom:6}}>
           <select value={showAll?'all':monthIdx} onChange={e=>{if(e.target.value==='all'){setShowAll(true);}else{setShowAll(false);setMonthIdx(Number(e.target.value));}}}
             style={{flex:1,background:C.bg,border:`1.5px solid ${C.border}`,borderRadius:10,padding:'10px',fontSize:13,color:C.text,outline:'none'}}>
             <option value="all">{t.allMonths}</option>
@@ -1552,6 +1758,11 @@ function ReportsScreen({data,t,lang}){
             {years.map(y=><option key={y} value={y}>{y}</option>)}
           </select>
         </div>
+        <select value={custFilter} onChange={e=>setCustFilter(e.target.value)}
+          style={{width:'100%',background:C.bg,border:`1.5px solid ${C.border}`,borderRadius:10,padding:'10px',fontSize:13,color:C.text,outline:'none'}}>
+          <option value="all">👥 All Customers</option>
+          {data.customers.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
       </div>
 
       <div style={{padding:'12px 14px 0'}}>
@@ -1710,6 +1921,16 @@ function SettingsModal({data,setData,t,lang,onClose,onBackup,onChangePIN}){
   const hasPin=!!localStorage.getItem('koekela_pin');
   const lastBackup=localStorage.getItem('koekela_last_backup');
   const lastStr=lastBackup?new Date(parseInt(lastBackup)).toLocaleDateString('en-ZA',{day:'2-digit',month:'short',year:'numeric'}):'Never';
+  const[shopName,setShopName]=React.useState(()=>localStorage.getItem('koekela_shop_name')||'');
+  const[shopAddr,setShopAddr]=React.useState(()=>localStorage.getItem('koekela_shop_address')||'');
+  const[shopEmail,setShopEmail]=React.useState(()=>localStorage.getItem('koekela_shop_email')||'');
+  const[shopSaved,setShopSaved]=React.useState(false);
+  function saveShopInfo(){
+    localStorage.setItem('koekela_shop_name',shopName.trim());
+    localStorage.setItem('koekela_shop_address',shopAddr.trim());
+    localStorage.setItem('koekela_shop_email',shopEmail.trim());
+    setShopSaved(true);setTimeout(()=>setShopSaved(false),2000);
+  }
 
   function exportData(){
     const json=JSON.stringify(data,null,2);
@@ -1740,6 +1961,24 @@ function SettingsModal({data,setData,t,lang,onClose,onBackup,onChangePIN}){
   return(
     <Modal title={`⚙️ ${t.settings}`} onClose={onClose}>
       <div style={{paddingTop:16}}>
+        {/* Shop info for invoices */}
+        <div style={{background:C.bg,borderRadius:12,padding:'14px',marginBottom:14,border:`1px solid ${C.border}`}}>
+          <div style={{fontSize:12,fontWeight:800,color:C.muted,textTransform:'uppercase',letterSpacing:.5,marginBottom:10}}>🏪 Shop Info (Invoices)</div>
+          {[
+            {label:'Shop Name',val:shopName,set:setShopName,ph:'e.g. Koekela Spaza Shop'},
+            {label:'Address',val:shopAddr,set:setShopAddr,ph:'e.g. Millbank farm Tosca'},
+            {label:'Email',val:shopEmail,set:setShopEmail,ph:'e.g. shop@email.com'},
+          ].map(({label,val,set,ph})=>(
+            <div key={label} style={{marginBottom:8}}>
+              <div style={{fontSize:11,fontWeight:700,color:C.muted,marginBottom:3}}>{label}</div>
+              <input value={val} onChange={e=>set(e.target.value)} placeholder={ph}
+                style={{width:'100%',border:`1.5px solid ${C.border}`,borderRadius:9,padding:'9px 12px',fontSize:13,outline:'none',background:C.white,color:C.text,fontFamily:'Nunito,sans-serif'}}/>
+            </div>
+          ))}
+          <Btn onClick={saveShopInfo} variant={shopSaved?'success':'primary'} style={{width:'100%',marginTop:4}}>
+            {shopSaved?'✅ Saved!':'💾 Save Shop Info'}
+          </Btn>
+        </div>
         {/* Backup status */}
         <div style={{background:C.bg,borderRadius:10,padding:'12px 14px',marginBottom:12,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
           <div>
@@ -1815,9 +2054,22 @@ function AppContent(){
   const [lang,setLang]=React.useState(()=>loadData().lang||'en');
   const [showSettings,setShowSettings]=React.useState(false);
   const [lastBackup,setLastBackup]=React.useState(()=>localStorage.getItem('koekela_last_backup'));
+  const [cloudStatus,setCloudStatus]=React.useState('unknown'); // 'unknown'|'ok'|'fail'
 
   const hasPin=!!localStorage.getItem('koekela_pin');
   const [unlocked,setUnlocked]=React.useState(!hasPin);
+
+  // Listen for cloud sync success/failure events dispatched by saveData()
+  React.useEffect(()=>{
+    const onOk=()=>setCloudStatus('ok');
+    const onFail=()=>setCloudStatus('fail');
+    window.addEventListener('koekela_cloud_ok',onOk);
+    window.addEventListener('koekela_cloud_fail',onFail);
+    return()=>{
+      window.removeEventListener('koekela_cloud_ok',onOk);
+      window.removeEventListener('koekela_cloud_fail',onFail);
+    };
+  },[]);
 
   // IDB fallback on first load if localStorage was empty
   React.useEffect(()=>{
@@ -1897,7 +2149,7 @@ function AppContent(){
             style={{background:'rgba(255,255,255,0.15)',border:'none',cursor:'pointer',color:'#fff',borderRadius:10,padding:'7px 11px',fontSize:16}}>⚙️</button>
         )}/>
       <div style={{flex:1,overflow:'hidden',position:'relative'}}>
-        {tab==='home'&&<HomeScreen data={data} setData={setData} setTab={setTab} t={t} lang={lang} onOpenSettings={()=>setShowSettings(true)} onBackup={handleBackup} lastBackup={lastBackup}/>}
+        {tab==='home'&&<HomeScreen data={data} setData={setData} setTab={setTab} t={t} lang={lang} onOpenSettings={()=>setShowSettings(true)} onBackup={handleBackup} lastBackup={lastBackup} cloudStatus={cloudStatus}/>}
         {tab==='inventory'&&<InventoryScreen data={data} setData={setData} t={t} lang={lang}/>}
         {tab==='sale'&&<SaleScreen data={data} setData={setData} t={t} lang={lang} setTab={setTab}/>}
         {tab==='customers'&&<CustomersScreen data={data} setData={setData} t={t} lang={lang}/>}

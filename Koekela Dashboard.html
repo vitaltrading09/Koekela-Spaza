@@ -23,6 +23,14 @@ input,select,textarea,button{font-family:'Nunito',sans-serif;}
   .no-print{display:none!important;}
   body{background:#fff;}
   .print-page{page-break-after:always;}
+  /* Invoice print — hide everything except invoice paper */
+  body.invoice-open *{visibility:hidden;}
+  body.invoice-open .invoice-print-area,
+  body.invoice-open .invoice-print-area *{visibility:visible;}
+  body.invoice-open .invoice-print-area{
+    position:fixed;top:0;left:0;width:100%;
+    padding:40px;background:#fff;box-shadow:none!important;border-radius:0!important;
+  }
 }
 </style>
 <script>
@@ -113,9 +121,20 @@ function saveData(d){
   try{localStorage.setItem('koekela_data_bak',j);}catch(e){}
   IDB.set('koekela_data',d);
   try{new BroadcastChannel('koekela_sync').postMessage({type:'update',data:d});}catch(e){}
-  saveToCloud(d).catch(()=>{});
+  if(getSBConfig().shopId){
+    saveToCloud(d)
+      .then(()=>window.dispatchEvent(new CustomEvent('koekela_cloud_ok')))
+      .catch(()=>window.dispatchEvent(new CustomEvent('koekela_cloud_fail')));
+  }
 }
 function markBackup(){localStorage.setItem('koekela_last_backup',Date.now().toString());}
+function getShopInfo(){
+  return{
+    name:localStorage.getItem('koekela_shop_name')||'Koekela Spaza Shop',
+    address:localStorage.getItem('koekela_shop_address')||'',
+    email:localStorage.getItem('koekela_shop_email')||''
+  };
+}
 
 // ─────────────────────────────────────────────────────────────
 // CLOUD SYNC — Supabase
@@ -167,6 +186,7 @@ function uid(){
 }
 function fmt(n){return'R '+parseFloat(n||0).toFixed(2);}
 function fmtDate(iso){return new Date(iso).toLocaleDateString('en-ZA',{day:'2-digit',month:'short',year:'numeric'});}
+function simpleHash(str){let h=5381;for(let i=0;i<str.length;i++)h=(h*33^str.charCodeAt(i))>>>0;return String(h);}
 
 // ─── UI PRIMITIVES ────────────────────────────────────
 function Btn({children,onClick,variant='primary',size='md',style:s={},disabled=false,type='button'}){
@@ -265,23 +285,40 @@ function Toast({msg,color=C.navyDark,onDone}){
   );
 }
 
-// ─── BACKUP BANNER ────────────────────────────────────
-function BackupBanner({onBackup,lastBackup}){
-  const [dismissed,setDismissed]=React.useState(false);
+// ─── SYNC STATUS BANNER ───────────────────────────────
+function SyncStatusBanner({cloudStatus,onBackup,lastBackup}){
+  const[dismissed,setDismissed]=React.useState(false);
   if(dismissed)return null;
-  const needed=!lastBackup||(Date.now()-parseInt(lastBackup)>24*60*60*1000);
-  if(!needed)return null;
-  const lastStr=lastBackup?new Date(parseInt(lastBackup)).toLocaleDateString('en-ZA'):'Never';
-  return(
-    <div className="no-print" style={{background:C.purple,padding:'10px 32px',display:'flex',alignItems:'center',gap:12,animation:'fadeIn .3s ease'}}>
-      <span style={{fontSize:16}}>⚠️</span>
-      <div style={{flex:1,color:'#fff',fontSize:13,fontWeight:600}}>
-        Backup recommended — Last backup: <strong>{lastStr}</strong>
+  const sbConfigured=!!getSBConfig().shopId;
+  if(sbConfigured&&cloudStatus==='fail'){
+    return(
+      <div className="no-print" style={{background:'#7f1d1d',padding:'10px 32px',display:'flex',alignItems:'center',gap:12,animation:'fadeIn .3s ease'}}>
+        <span style={{fontSize:16}}>📵</span>
+        <div style={{flex:1,color:'#fff',fontSize:13,fontWeight:600}}>
+          <div>Cloud Sync Offline</div>
+          <div style={{fontWeight:400,fontSize:12,opacity:.85}}>Weak signal — download a local backup now</div>
+        </div>
+        <Btn onClick={onBackup} variant='gold' size='sm'>📥 Backup</Btn>
+        <button onClick={()=>setDismissed(true)} style={{background:'none',border:'none',color:'rgba(255,255,255,0.7)',cursor:'pointer',fontSize:18,lineHeight:1}}>✕</button>
       </div>
-      <Btn onClick={onBackup} variant='gold' size='sm'>📥 Backup Now</Btn>
-      <button onClick={()=>setDismissed(true)} style={{background:'none',border:'none',color:'rgba(255,255,255,0.7)',cursor:'pointer',fontSize:18,lineHeight:1}}>✕</button>
-    </div>
-  );
+    );
+  }
+  if(!sbConfigured){
+    const needed=!lastBackup||(Date.now()-parseInt(lastBackup)>24*60*60*1000);
+    if(!needed)return null;
+    const lastStr=lastBackup?new Date(parseInt(lastBackup)).toLocaleDateString('en-ZA'):'Never';
+    return(
+      <div className="no-print" style={{background:C.purple,padding:'10px 32px',display:'flex',alignItems:'center',gap:12,animation:'fadeIn .3s ease'}}>
+        <span style={{fontSize:16}}>⚠️</span>
+        <div style={{flex:1,color:'#fff',fontSize:13,fontWeight:600}}>
+          Backup recommended — Last backup: <strong>{lastStr}</strong>
+        </div>
+        <Btn onClick={onBackup} variant='gold' size='sm'>📥 Backup Now</Btn>
+        <button onClick={()=>setDismissed(true)} style={{background:'none',border:'none',color:'rgba(255,255,255,0.7)',cursor:'pointer',fontSize:18,lineHeight:1}}>✕</button>
+      </div>
+    );
+  }
+  return null;
 }
 
 // ─── OVERVIEW ─────────────────────────────────────────
@@ -456,6 +493,147 @@ function Overview({data,setData,setSection,setToast}){
   );
 }
 
+// ─── INVOICE VIEW ────────────────────────────────────
+function InvoiceView({customer,data,onClose}){
+  const shop=getShopInfo();
+  const[invNum]=React.useState(()=>{
+    const n=parseInt(localStorage.getItem('koekela_inv_counter')||'0')+1;
+    localStorage.setItem('koekela_inv_counter',String(n));
+    return'INV'+String(n).padStart(4,'0');
+  });
+  const invDate=new Date().toLocaleDateString('en-ZA',{day:'2-digit',month:'2-digit',year:'numeric'});
+  React.useEffect(()=>{
+    document.body.classList.add('invoice-open');
+    return()=>document.body.classList.remove('invoice-open');
+  },[]);
+  const txs=data.transactions.filter(tx=>tx.customerId===customer.id&&tx.status==='open');
+  const allItems=txs.flatMap(tx=>tx.items);
+  const subtotal=allItems.reduce((s,i)=>s+i.total,0);
+  const balanceDue=parseFloat(customer.balance||0);
+  const th={padding:'12px 14px',fontSize:11,fontWeight:800,color:'#64748B',textTransform:'uppercase',letterSpacing:.5};
+  return(
+    <div className="invoice-overlay" style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.75)',zIndex:5000,display:'flex',flexDirection:'column',alignItems:'center',padding:'20px 20px 60px',overflowY:'auto'}}>
+      <div className="no-print" style={{display:'flex',gap:12,marginBottom:16,width:'100%',maxWidth:820,justifyContent:'flex-end'}}>
+        <Btn onClick={()=>window.print()} variant='gold'>🖨️ Print / Save PDF</Btn>
+        <Btn onClick={onClose} variant='ghost'>✕ Close</Btn>
+      </div>
+      <div className="invoice-print-area" style={{background:'#fff',width:'100%',maxWidth:820,borderRadius:14,padding:'52px 60px',boxShadow:'0 12px 50px rgba(0,0,0,0.25)',fontFamily:"'Nunito',sans-serif",color:'#1E293B'}}>
+        {/* Header */}
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:40,paddingBottom:24,borderBottom:'2px solid #E2E8F0'}}>
+          <div style={{display:'flex',gap:16,alignItems:'center'}}>
+            <span style={{fontSize:54,lineHeight:1}}>🛒</span>
+            <div>
+              <div style={{fontSize:22,fontWeight:900,color:'#0f2743'}}>{shop.name}</div>
+              {shop.address&&<div style={{fontSize:13,color:'#64748B',marginTop:4}}>{shop.address}</div>}
+              {shop.email&&<div style={{fontSize:13,color:'#64748B',marginTop:2}}>{shop.email}</div>}
+            </div>
+          </div>
+          <div style={{textAlign:'right'}}>
+            <div style={{fontSize:38,fontWeight:900,color:'#0f2743',letterSpacing:-1}}>INVOICE</div>
+            <div style={{fontSize:14,color:'#64748B',marginTop:8}}>#{invNum}</div>
+            <div style={{fontSize:14,color:'#64748B'}}>Date: {invDate}</div>
+          </div>
+        </div>
+        {/* Bill To */}
+        <div style={{marginBottom:32}}>
+          <span style={{fontSize:15,fontWeight:800,color:'#1E293B'}}>Bill To: </span>
+          <span style={{fontSize:17,fontWeight:900,color:'#0f2743'}}>{customer.name}</span>
+          {customer.phone&&<div style={{fontSize:13,color:'#64748B',marginTop:4}}>{customer.phone}</div>}
+        </div>
+        {/* Items table */}
+        <table style={{width:'100%',borderCollapse:'collapse',marginBottom:36}}>
+          <thead>
+            <tr style={{background:'#F1F5F9'}}>
+              <th style={{...th,width:44,textAlign:'left'}}>#</th>
+              <th style={{...th,textAlign:'left'}}>Items</th>
+              <th style={{...th,width:80,textAlign:'center'}}>Qty</th>
+              <th style={{...th,width:130,textAlign:'right'}}>Unit Cost</th>
+              <th style={{...th,width:130,textAlign:'right'}}>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {allItems.length===0?(
+              <tr><td colSpan={5} style={{padding:'32px',textAlign:'center',color:'#94A3B8',fontSize:14}}>No outstanding items for this customer</td></tr>
+            ):allItems.map((item,i)=>(
+              <tr key={i} style={{borderBottom:'1px solid #E2E8F0'}}>
+                <td style={{padding:'13px 14px',color:'#94A3B8',fontSize:14}}>{i+1}</td>
+                <td style={{padding:'13px 14px',fontSize:14,fontWeight:600,color:'#1E293B'}}>{item.name}</td>
+                <td style={{padding:'13px 14px',textAlign:'center',fontSize:14,color:'#1E293B'}}>{item.qty}</td>
+                <td style={{padding:'13px 14px',textAlign:'right',fontSize:14,color:'#1E293B'}}>R{parseFloat(item.price).toFixed(2)}</td>
+                <td style={{padding:'13px 14px',textAlign:'right',fontSize:14,fontWeight:700,color:'#1E293B'}}>R{parseFloat(item.total).toFixed(2)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {/* Totals */}
+        <div style={{display:'flex',justifyContent:'flex-end'}}>
+          <div style={{width:300}}>
+            <div style={{display:'flex',justifyContent:'space-between',padding:'11px 0',borderBottom:'1px solid #E2E8F0'}}>
+              <span style={{fontSize:14,color:'#64748B',fontWeight:600}}>Subtotal</span>
+              <span style={{fontSize:14,fontWeight:700,color:'#1E293B'}}>R{subtotal.toFixed(2)}</span>
+            </div>
+            <div style={{display:'flex',justifyContent:'space-between',padding:'11px 0',borderBottom:'1px solid #E2E8F0'}}>
+              <span style={{fontSize:14,color:'#64748B',fontWeight:600}}>Total</span>
+              <span style={{fontSize:14,fontWeight:700,color:'#1E293B'}}>R{subtotal.toFixed(2)}</span>
+            </div>
+            <div style={{display:'flex',justifyContent:'space-between',padding:'14px 18px',background:'#F1F5F9',marginTop:10,borderRadius:9}}>
+              <span style={{fontSize:16,fontWeight:900,color:'#0f2743'}}>Balance Due</span>
+              <span style={{fontSize:18,fontWeight:900,color:'#0f2743'}}>R{balanceDue.toFixed(2)}</span>
+            </div>
+          </div>
+        </div>
+        {/* Footer */}
+        <div style={{marginTop:52,paddingTop:24,borderTop:'1px solid #E2E8F0',textAlign:'center',color:'#94A3B8',fontSize:13}}>
+          Thank you for your business!
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── PIN CONFIRM MODAL ────────────────────────────────
+function PINConfirmModal({title,message,onConfirm,onCancel}){
+  const[digits,setDigits]=React.useState([]);
+  const[shake,setShake]=React.useState(false);
+  const[err,setErr]=React.useState('');
+  const stored=localStorage.getItem('koekela_pin');
+  function press(d){
+    if(digits.length>=4)return;
+    const next=[...digits,d];setDigits(next);
+    if(next.length===4){
+      if(simpleHash(next.join(''))===stored){onConfirm();}
+      else{setShake(true);setErr('Wrong PIN — try again');setTimeout(()=>{setShake(false);setDigits([]);setErr('');},700);}
+    }
+  }
+  function del(){setDigits(d=>d.slice(0,-1));setErr('');}
+  return(
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:3000,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
+      <div style={{background:'#fff',borderRadius:20,padding:28,width:300,boxShadow:'0 25px 60px rgba(0,0,0,0.3)'}}>
+        <div style={{fontWeight:900,fontSize:17,color:C.text,marginBottom:4,textAlign:'center'}}>{title}</div>
+        <div style={{fontSize:13,color:C.muted,textAlign:'center',marginBottom:20,lineHeight:1.5}}>{message}</div>
+        <div style={{display:'flex',justifyContent:'center',gap:12,marginBottom:16,animation:shake?'fadeIn .1s ease 3':'none'}}>
+          {[0,1,2,3].map(i=>(
+            <div key={i} style={{width:14,height:14,borderRadius:7,background:digits.length>i?C.navy:C.border}}/>
+          ))}
+        </div>
+        {err&&<div style={{color:C.danger,fontSize:12,fontWeight:700,textAlign:'center',marginBottom:10}}>{err}</div>}
+        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:12}}>
+          {[1,2,3,4,5,6,7,8,9,'',0,'⌫'].map((k,i)=>(
+            <button key={i} onClick={()=>typeof k==='number'?press(String(k)):k==='⌫'?del():null}
+              disabled={k===''}
+              style={{padding:'14px',fontSize:18,fontWeight:700,background:k===''?'transparent':C.bg,
+                border:`1.5px solid ${k===''?'transparent':C.border}`,borderRadius:10,cursor:k===''?'default':'pointer',
+                color:C.text,opacity:k===''?0:1}}>
+              {k}
+            </button>
+          ))}
+        </div>
+        <Btn onClick={onCancel} variant='ghost' style={{width:'100%'}}>Cancel</Btn>
+      </div>
+    </div>
+  );
+}
+
 // ─── CUSTOMERS SECTION ────────────────────────────────
 function CustomersSection({data,setData,setToast}){
   const [search,setSearch]=React.useState('');
@@ -464,8 +642,10 @@ function CustomersSection({data,setData,setToast}){
   const [form,setForm]=React.useState({name:'',phone:''});
   const [settleConfirm,setSettleConfirm]=React.useState(null);
   const [delConfirm,setDelConfirm]=React.useState(null);
+  const [delPinModal,setDelPinModal]=React.useState(false);
   const [delTxConfirm,setDelTxConfirm]=React.useState(null);
   const [addTxModal,setAddTxModal]=React.useState(false);
+  const [invoiceCustomer,setInvoiceCustomer]=React.useState(null);
   const [txForm,setTxForm]=React.useState({note:'',amount:'',date:new Date().toISOString().split('T')[0]});
 
   const filtered=data.customers.filter(c=>c.name.toLowerCase().includes(search.toLowerCase())||c.phone.includes(search));
@@ -528,6 +708,8 @@ function CustomersSection({data,setData,setToast}){
     return(
       <div>
         {settleConfirm&&<ConfirmDialog title="Settle Credit" message={`Mark all as paid for ${cust.name}? Deduct ${fmt(openBal)} from pay.`} onConfirm={()=>settle(cust.id)} onCancel={()=>setSettleConfirm(null)} confirmLabel="Yes, Mark Settled" variant='success'/>}
+        {invoiceCustomer&&<InvoiceView customer={invoiceCustomer} data={data} onClose={()=>setInvoiceCustomer(null)}/>}
+        {delPinModal&&<PINConfirmModal title="Confirm Deletion" message={`Enter your PIN to permanently delete ${cust.name} and all their transactions.`} onConfirm={()=>{setDelPinModal(false);deleteCustomer(cust.id);}} onCancel={()=>setDelPinModal(false)}/>}
         {delConfirm&&<ConfirmDialog title="Delete Customer" message={`Delete ${cust.name} and ALL their transactions? This cannot be undone.`} onConfirm={()=>deleteCustomer(cust.id)} onCancel={()=>setDelConfirm(null)} confirmLabel="Delete Customer"/>}
         {delTxConfirm&&<ConfirmDialog title="Delete Transaction" message={`Delete transaction from ${fmtDate(delTxConfirm.date)} (${fmt(delTxConfirm.total)})?`} onConfirm={()=>deleteTx(delTxConfirm.id,delTxConfirm.total,cust.id)} onCancel={()=>setDelTxConfirm(null)} confirmLabel="Delete"/>}
 
@@ -554,8 +736,9 @@ function CustomersSection({data,setData,setToast}){
           <div style={{flex:1}}/>
           <Btn onClick={()=>{setForm({name:cust.name,phone:cust.phone});setModal(cust);}} variant='outline' size='sm'>✏️ Edit</Btn>
           <Btn onClick={()=>setAddTxModal(true)} variant='gold' size='sm'>+ Add Transaction</Btn>
+          <Btn onClick={()=>setInvoiceCustomer(cust)} variant='purple' size='sm'>🧾 Invoice</Btn>
           {openBal>0&&<Btn onClick={()=>setSettleConfirm(true)} variant='success' size='sm'>✓ Settle All</Btn>}
-          <Btn onClick={()=>setDelConfirm(true)} variant='dangerOutline' size='sm'>🗑️ Delete</Btn>
+          <Btn onClick={()=>{const p=localStorage.getItem('koekela_pin');if(p)setDelPinModal(true);else setDelConfirm(true);}} variant='dangerOutline' size='sm'>🗑️ Delete</Btn>
         </div>
 
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:16,marginBottom:20}}>
@@ -750,6 +933,7 @@ function StockSection({data,setData,setToast}){
   const [form,setForm]=React.useState({barcode:'',name:'',nameAf:'',costPrice:'',sellPrice:'',markup:'20',category:'food',stock_qty:''});
   const [err,setErr]=React.useState('');
   const [delConfirm,setDelConfirm]=React.useState(null);
+  const [delPinModal,setDelPinModal]=React.useState(null);
   const [receiveModal,setReceiveModal]=React.useState(false);
 
   const products=data.products.filter(p=>
@@ -792,6 +976,7 @@ function StockSection({data,setData,setToast}){
 
   return(
     <div>
+      {delPinModal&&<PINConfirmModal title="Confirm Deletion" message={`Enter your PIN to permanently delete "${delPinModal.name}".`} onConfirm={()=>{const p=delPinModal;setDelPinModal(null);setModal(null);deleteProduct(p.id);}} onCancel={()=>setDelPinModal(null)}/>}
       {delConfirm&&<ConfirmDialog title="Delete Product" message={`Delete "${delConfirm.name}"? This cannot be undone.`} onConfirm={()=>deleteProduct(delConfirm.id)} onCancel={()=>setDelConfirm(null)} confirmLabel="Delete Product"/>}
       {receiveModal&&<StockReceiveModalDash data={data} setData={setData} onClose={()=>setReceiveModal(false)} setToast={setToast}/>}
 
@@ -829,7 +1014,7 @@ function StockSection({data,setData,setToast}){
           </FormField>
           {err&&<div style={{background:C.dangerLight,color:C.danger,borderRadius:8,padding:'10px 14px',fontSize:13,fontWeight:600,marginBottom:12}}>{err}</div>}
           <div style={{display:'flex',gap:10}}>
-            {modal!=='add'&&<Btn onClick={()=>setDelConfirm(modal)} variant='dangerOutline' size='sm'>🗑️</Btn>}
+            {modal!=='add'&&<Btn onClick={()=>{const p=localStorage.getItem('koekela_pin');if(p)setDelPinModal(modal);else setDelConfirm(modal);}} variant='dangerOutline' size='sm'>🗑️</Btn>}
             <Btn onClick={()=>setModal(null)} variant='ghost' style={{flex:1}}>Cancel</Btn>
             <Btn onClick={save} variant='primary' style={{flex:2}}>Save Product</Btn>
           </div>
@@ -888,25 +1073,45 @@ function ReportsSection({data}){
   const [monthIdx,setMonthIdx]=React.useState(new Date().getMonth());
   const [year,setYear]=React.useState(curYear);
   const [showAll,setShowAll]=React.useState(false);
+  const [custFilter,setCustFilter]=React.useState('all');
   const years=[curYear-1,curYear,curYear+1];
 
   const filtered=data.transactions.filter(tx=>{
-    if(showAll)return true;
-    const d=new Date(tx.date);return d.getMonth()===monthIdx&&d.getFullYear()===year;
+    const dateOk=showAll||(()=>{const d=new Date(tx.date);return d.getMonth()===monthIdx&&d.getFullYear()===year;})();
+    const custOk=custFilter==='all'||tx.customerId===custFilter;
+    return dateOk&&custOk;
   });
+
+  // Profit & best sellers
+  const productMap={};
+  data.products.forEach(p=>{productMap[p.id]=p;});
+  let totalProfit=0;
+  const productSales={};
+  filtered.forEach(tx=>{tx.items.forEach(item=>{
+    const prod=productMap[item.productId];const cost=prod?.costPrice||0;
+    const itemProfit=(item.price-cost)*item.qty;totalProfit+=itemProfit;
+    if(!productSales[item.productId])productSales[item.productId]={name:item.name,qty:0,revenue:0,profit:0};
+    productSales[item.productId].qty+=item.qty;
+    productSales[item.productId].revenue+=item.total;
+    productSales[item.productId].profit+=itemProfit;
+  });});
+  const bestSellers=Object.values(productSales).sort((a,b)=>b.qty-a.qty).slice(0,5);
+  const maxQty=bestSellers.length?bestSellers[0].qty:1;
+
   const byCust=data.customers.map(c=>{
     const txs=filtered.filter(tx=>tx.customerId===c.id);
     const total=txs.reduce((s,tx)=>s+tx.total,0);
     return{...c,txs,total,items:txs.reduce((s,tx)=>s+tx.items.reduce((ss,i)=>ss+i.qty,0),0)};
   }).filter(c=>c.txs.length>0).sort((a,b)=>b.total-a.total);
   const grand=byCust.reduce((s,c)=>s+c.total,0);
+  const margin=grand>0?Math.round((totalProfit/grand)*100):0;
   const label=showAll?'All Time':MONTHS[monthIdx]+' '+year;
 
   return(
     <div>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
         <h2 style={{fontSize:22,fontWeight:900}}>Monthly Report</h2>
-        <div style={{display:'flex',gap:10,alignItems:'center'}}>
+        <div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>
           <select value={showAll?'all':monthIdx} onChange={e=>{if(e.target.value==='all'){setShowAll(true);}else{setShowAll(false);setMonthIdx(Number(e.target.value));}}}
             style={{background:C.white,border:`1.5px solid ${C.border}`,borderRadius:9,padding:'9px 12px',fontSize:13,outline:'none'}}>
             <option value="all">All Time</option>
@@ -916,22 +1121,60 @@ function ReportsSection({data}){
             style={{background:C.white,border:`1.5px solid ${C.border}`,borderRadius:9,padding:'9px 12px',fontSize:13,outline:'none'}}>
             {years.map(y=><option key={y} value={y}>{y}</option>)}
           </select>
+          <select value={custFilter} onChange={e=>setCustFilter(e.target.value)}
+            style={{background:C.white,border:`1.5px solid ${C.border}`,borderRadius:9,padding:'9px 12px',fontSize:13,outline:'none'}}>
+            <option value="all">👥 All Customers</option>
+            {data.customers.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
           <Btn onClick={()=>window.print()} variant='primary' size='sm' className="no-print">🖨️ Print Report</Btn>
         </div>
       </div>
 
-      <div style={{background:`linear-gradient(135deg,${C.navyDark},${C.navy})`,borderRadius:16,padding:'24px 32px',marginBottom:24,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-        <div>
-          <div style={{color:'rgba(255,255,255,0.6)',fontSize:13,fontWeight:600,marginBottom:4}}>{label}</div>
-          <div style={{color:'#fff',fontSize:42,fontWeight:900}}>{fmt(grand)}</div>
-          <div style={{color:C.gold,fontSize:14,fontWeight:700,marginTop:4}}>Grand Total Credit</div>
+      {/* Revenue + Profit summary cards */}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginBottom:20}}>
+        <div style={{background:`linear-gradient(135deg,${C.navyDark},${C.navy})`,borderRadius:16,padding:'20px 28px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <div>
+            <div style={{color:'rgba(255,255,255,0.6)',fontSize:13,fontWeight:600,marginBottom:4}}>{label} · Revenue</div>
+            <div style={{color:'#fff',fontSize:36,fontWeight:900}}>{fmt(grand)}</div>
+            <div style={{color:C.gold,fontSize:13,fontWeight:700,marginTop:4}}>Grand Total Credit</div>
+          </div>
+          <div style={{textAlign:'right',color:'rgba(255,255,255,0.7)',fontSize:13}}>
+            <div style={{marginBottom:4}}>{filtered.length} transactions</div>
+            <div style={{marginBottom:4}}>{byCust.length} customers</div>
+            <div>{byCust.reduce((s,c)=>s+c.items,0)} items</div>
+          </div>
         </div>
-        <div style={{textAlign:'right'}}>
-          <div style={{color:'rgba(255,255,255,0.7)',fontSize:14,marginBottom:4}}>{filtered.length} transactions</div>
-          <div style={{color:'rgba(255,255,255,0.7)',fontSize:14,marginBottom:4}}>{byCust.length} customers</div>
-          <div style={{color:'rgba(255,255,255,0.7)',fontSize:14}}>{byCust.reduce((s,c)=>s+c.items,0)} items total</div>
+        <div style={{background:`linear-gradient(135deg,#065f46,#059669)`,borderRadius:16,padding:'20px 28px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <div>
+            <div style={{color:'rgba(255,255,255,0.6)',fontSize:13,fontWeight:600,marginBottom:4}}>{label} · Profit</div>
+            <div style={{color:'#fff',fontSize:36,fontWeight:900}}>{fmt(totalProfit)}</div>
+            <div style={{color:'#6ee7b7',fontSize:13,fontWeight:700,marginTop:4}}>{margin}% profit margin</div>
+          </div>
+          <span style={{fontSize:40,opacity:.4}}>💰</span>
         </div>
       </div>
+
+      {/* Best Sellers */}
+      {bestSellers.length>0&&(
+        <Card style={{marginBottom:20,padding:'16px 24px'}}>
+          <div style={{fontWeight:800,fontSize:16,marginBottom:16}}>🔥 Best Sellers — {label}</div>
+          {bestSellers.map((p,i)=>(
+            <div key={p.name} style={{marginBottom:i<bestSellers.length-1?14:0}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
+                <div style={{display:'flex',alignItems:'center',gap:8}}>
+                  <span style={{fontSize:15}}>{i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}.`}</span>
+                  <span style={{fontSize:14,fontWeight:700,color:C.text}}>{p.name}</span>
+                </div>
+                <span style={{fontSize:13,fontWeight:700,color:C.muted}}>{p.qty} sold · {fmt(p.profit)} profit</span>
+              </div>
+              <div style={{background:C.bg,borderRadius:4,height:7,marginBottom:3}}>
+                <div style={{background:i===0?C.gold:'#93c5fd',borderRadius:4,height:7,width:`${Math.round((p.qty/maxQty)*100)}%`}}/>
+              </div>
+              <div style={{fontSize:11,color:C.muted}}>{fmt(p.revenue)} revenue</div>
+            </div>
+          ))}
+        </Card>
+      )}
 
       {byCust.length===0&&<div style={{textAlign:'center',color:C.muted,padding:'40px 0',fontSize:16}}>No transactions for this period</div>}
       {byCust.map(c=>(
@@ -1057,6 +1300,16 @@ function CloudSyncSection({data}){
 // ─── SETTINGS SECTION ─────────────────────────────────
 function SettingsSection({data,setData,setToast,lastBackup,onBackup}){
   const lastStr=lastBackup?new Date(parseInt(lastBackup)).toLocaleDateString('en-ZA',{day:'2-digit',month:'short',year:'numeric'}):'Never';
+  const[shopName,setShopName]=React.useState(()=>localStorage.getItem('koekela_shop_name')||'');
+  const[shopAddr,setShopAddr]=React.useState(()=>localStorage.getItem('koekela_shop_address')||'');
+  const[shopEmail,setShopEmail]=React.useState(()=>localStorage.getItem('koekela_shop_email')||'');
+  const[shopSaved,setShopSaved]=React.useState(false);
+  function saveShopInfo(){
+    localStorage.setItem('koekela_shop_name',shopName.trim());
+    localStorage.setItem('koekela_shop_address',shopAddr.trim());
+    localStorage.setItem('koekela_shop_email',shopEmail.trim());
+    setShopSaved(true);setTimeout(()=>setShopSaved(false),2000);
+  }
 
   function exportData(){
     const json=JSON.stringify(data,null,2);
@@ -1090,6 +1343,22 @@ function SettingsSection({data,setData,setToast,lastBackup,onBackup}){
   return(
     <div style={{maxWidth:700}}>
       <SectionHeader title="Settings & Data"/>
+
+      {/* Shop info for invoices */}
+      <Card style={{marginBottom:20}}>
+        <h3 style={{fontWeight:800,fontSize:16,marginBottom:4}}>🏪 Shop Info</h3>
+        <div style={{fontSize:13,color:C.muted,marginBottom:16}}>Appears on printed customer invoices</div>
+        <FormField label="Shop Name">
+          <TextInput value={shopName} onChange={e=>setShopName(e.target.value)} placeholder="e.g. Koekela Spaza Shop"/>
+        </FormField>
+        <FormField label="Address / Location">
+          <TextInput value={shopAddr} onChange={e=>setShopAddr(e.target.value)} placeholder="e.g. Millbank farm Tosca"/>
+        </FormField>
+        <FormField label="Email">
+          <TextInput value={shopEmail} onChange={e=>setShopEmail(e.target.value)} placeholder="e.g. shop@email.com" type="email"/>
+        </FormField>
+        <Btn onClick={saveShopInfo} variant={shopSaved?'success':'primary'}>{shopSaved?'✅ Saved!':'💾 Save Shop Info'}</Btn>
+      </Card>
 
       {/* Backup status */}
       <Card style={{background:lastBackup?C.successLight:C.dangerLight,border:`1px solid ${lastBackup?C.success:C.danger}`,marginBottom:20,padding:'16px 20px'}}>
@@ -1167,6 +1436,15 @@ function Dashboard(){
   const [liveFlash,setLiveFlash]=React.useState(false);
   const [toast,setToast]=React.useState('');
   const [lastBackup,setLastBackup]=React.useState(()=>localStorage.getItem('koekela_last_backup'));
+  const [cloudStatus,setCloudStatus]=React.useState('unknown');
+
+  React.useEffect(()=>{
+    const onOk=()=>setCloudStatus('ok');
+    const onFail=()=>setCloudStatus('fail');
+    window.addEventListener('koekela_cloud_ok',onOk);
+    window.addEventListener('koekela_cloud_fail',onFail);
+    return()=>{window.removeEventListener('koekela_cloud_ok',onOk);window.removeEventListener('koekela_cloud_fail',onFail);};
+  },[]);
 
   // IDB fallback on first load
   React.useEffect(()=>{
@@ -1279,8 +1557,8 @@ function Dashboard(){
 
       {/* Main content */}
       <div style={{marginLeft:220,flex:1,minHeight:'100vh',display:'flex',flexDirection:'column'}}>
-        {/* Backup banner */}
-        <BackupBanner onBackup={handleBackup} lastBackup={lastBackup}/>
+        {/* Sync status banner */}
+        <SyncStatusBanner cloudStatus={cloudStatus} onBackup={handleBackup} lastBackup={lastBackup}/>
 
         {/* Top bar */}
         <div className="no-print" style={{background:C.white,padding:'14px 32px',borderBottom:`1px solid ${C.border}`,display:'flex',justifyContent:'space-between',alignItems:'center',position:'sticky',top:0,zIndex:50,boxShadow:'0 1px 4px rgba(0,0,0,0.06)'}}>
