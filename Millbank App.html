@@ -869,6 +869,8 @@ function HomeScreen({data,setData,setTab,t,lang,onOpenSettings,onBackup,lastBack
 // STOCK RECEIVE MODAL
 // ─────────────────────────────────────────────────────────────
 function StockReceiveModal({data,setData,t,lang,onClose,onDone}){
+  const [tab,setTab]=React.useState('manual');
+  // Manual tab
   const [received,setReceived]=React.useState([]);
   const [scanning,setScanning]=React.useState(false);
   const [search,setSearch]=React.useState('');
@@ -876,6 +878,13 @@ function StockReceiveModal({data,setData,t,lang,onClose,onDone}){
   const [qty,setQty]=React.useState('1');
   const [notFound,setNotFound]=React.useState('');
   const qtyRef=React.useRef(null);
+  // Scan tab
+  const [scanStatus,setScanStatus]=React.useState('idle');
+  const [scanMsg,setScanMsg]=React.useState('');
+  const [scannedRows,setScannedRows]=React.useState([]);
+  const [newProdModal,setNewProdModal]=React.useState(null);
+  const [newProdForm,setNewProdForm]=React.useState({name:'',sellPrice:'',category:'food'});
+  const fileRef=React.useRef();
 
   function handleScan(code){
     setScanning(false);setNotFound('');
@@ -906,8 +915,96 @@ function StockReceiveModal({data,setData,t,lang,onClose,onDone}){
       return{...p,stock_qty:(typeof p.stock_qty==='number'?p.stock_qty:0)+item.qty};
     });
     const nd={...data,products:updatedProducts};
-    setData(nd);saveData(nd);
-    onDone(t.stockUpdated);
+    setData(nd);saveData(nd);onDone(t.stockUpdated);
+  }
+
+  // ── Scan slip helpers ──
+  function setScanRow(i,f,v){setScannedRows(r=>r.map((row,idx)=>idx===i?{...row,[f]:v}:row));}
+
+  function fuzzyMatch(raw){
+    const words=raw.toLowerCase().split(/\s+/).filter(w=>w.length>2);
+    let bestId='',bestScore=0;
+    data.products.forEach(p=>{
+      const pw=[...p.name.toLowerCase().split(/\s+/),...(p.nameAf||'').toLowerCase().split(/\s+/)];
+      const matches=words.filter(w=>pw.some(x=>x.includes(w)||w.includes(x))).length;
+      const score=words.length>0?matches/Math.max(words.length,pw.filter(w=>w.length>2).length):0;
+      if(score>bestScore&&score>=0.35){bestScore=score;bestId=p.id;}
+    });
+    return bestId;
+  }
+
+  function parseReceipt(text){
+    const skip=/\b(total|subtotal|vat|tax|change|cash|receipt|invoice|date|time|thank|cashier|till|register|loyalty|points|balance|welcome|tender|card|pin|approved|amount)\b/i;
+    const items=[];
+    text.split('\n').map(l=>l.trim()).filter(l=>l.length>3).forEach(line=>{
+      if(skip.test(line))return;
+      const pm=line.match(/R?\s*(\d{1,5}[.,]\d{2})(?:\s|$)/);
+      if(!pm)return;
+      const price=parseFloat(pm[1].replace(',','.'));
+      if(price<=0||price>10000)return;
+      const qm=line.match(/\b(\d+)\s*[xX@]|[xX@]\s*(\d+)/);
+      const qty=qm?parseInt(qm[1]||qm[2]):1;
+      const priceIdx=line.lastIndexOf(pm[0].trim());
+      const raw=line.substring(0,priceIdx>0?priceIdx:line.length)
+        .replace(/\b\d+\s*[xX@]\s*|\s*[xX@]\s*\d+/gi,'')
+        .replace(/[^a-zA-Z0-9\s\-&']/g,' ').replace(/\s+/g,' ').trim();
+      if(raw.length<2)return;
+      items.push({rawName:raw,productId:fuzzyMatch(raw),qty:String(qty),costPrice:String(price)});
+    });
+    return items;
+  }
+
+  async function handleFile(e){
+    const file=e.target.files[0];
+    if(!file)return;
+    setScanStatus('loading');setScanMsg('Loading OCR engine...');
+    try{
+      if(!window.Tesseract){
+        await new Promise((res,rej)=>{
+          const s=document.createElement('script');
+          s.src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+          s.onload=res;s.onerror=()=>rej(new Error('Could not load OCR library. Check connection.'));
+          document.head.appendChild(s);
+        });
+      }
+      setScanStatus('processing');setScanMsg('Reading receipt — 15–30 seconds...');
+      const result=await window.Tesseract.recognize(file,'eng');
+      const items=parseReceipt(result.data.text);
+      if(items.length===0){setScanStatus('error');setScanMsg('No line items found. Try a clearer photo.');}
+      else{setScannedRows(items);setScanStatus('review');}
+    }catch(err){setScanStatus('error');setScanMsg(err.message||'OCR failed. Try again.');}
+  }
+
+  function openNewProd(i){
+    const clean=(scannedRows[i]?.rawName||'').replace(/\b\w/g,c=>c.toUpperCase()).slice(0,60);
+    setNewProdForm({name:clean,sellPrice:'',category:'food'});
+    setNewProdModal(i);
+  }
+
+  function saveNewProduct(){
+    if(!newProdForm.name.trim()){alert('Enter a product name.');return;}
+    const sell=parseFloat(newProdForm.sellPrice);
+    if(isNaN(sell)||sell<=0){alert('Enter a valid sell price.');return;}
+    const cost=parseFloat(scannedRows[newProdModal]?.costPrice)||0;
+    const markup=cost>0?Math.round((sell-cost)/cost*100):0;
+    const newProd={id:uid(),barcode:'',name:newProdForm.name.trim(),nameAf:'',
+      costPrice:cost,sellPrice:sell,markup,category:newProdForm.category,stock_qty:0};
+    setScanRow(newProdModal,'productId',newProd.id);
+    const nd={...data,products:[...data.products,newProd]};
+    setData(nd);saveData(nd);setNewProdModal(null);
+  }
+
+  function confirmScan(){
+    const valid=scannedRows.filter(r=>r.productId&&parseInt(r.qty)>0);
+    if(valid.length===0){alert('Match at least one item to a product.');return;}
+    const updatedProducts=data.products.map(p=>{
+      const item=valid.find(r=>r.productId===p.id);
+      if(!item)return p;
+      const cp=parseFloat(item.costPrice);
+      return{...p,stock_qty:(typeof p.stock_qty==='number'?p.stock_qty:0)+parseInt(item.qty),...(cp>0?{costPrice:cp}:{})};
+    });
+    const nd={...data,products:updatedProducts};
+    setData(nd);saveData(nd);onDone(`Stock updated for ${valid.length} product(s) from receipt!`);
   }
 
   const filteredProds=search?data.products.filter(p=>
@@ -921,76 +1018,183 @@ function StockReceiveModal({data,setData,t,lang,onClose,onDone}){
       {scanning&&<BarcodeScanner t={t} onScan={handleScan} onClose={()=>setScanning(false)}/>}
       <Modal title={`📥 ${t.receiveStock}`} onClose={onClose}>
         <div style={{paddingTop:12}}>
-          <div style={{background:'#EFF6FF',borderRadius:10,padding:'10px 12px',marginBottom:12,fontSize:12,color:'#1E40AF',lineHeight:1.5}}>
-            💡 {lang==='af'?'Skandeer strepieskode op afleweringsnota, of soek produk handmatig':'Scan the barcode on a delivery note, or search manually to receive stock'}
+
+          {/* Tab switcher */}
+          <div style={{display:'flex',gap:8,marginBottom:14}}>
+            {[['manual','📋 Manual'],['scan','📸 Scan Slip']].map(([tv,label])=>(
+              <button key={tv} onClick={()=>setTab(tv)} style={{flex:1,padding:'9px',borderRadius:10,border:'none',fontWeight:700,fontSize:13,cursor:'pointer',background:tab===tv?C.navy:'#F3F4F6',color:tab===tv?'#fff':C.text}}>{label}</button>
+            ))}
           </div>
 
-          <div style={{display:'flex',gap:8,marginBottom:8}}>
-            <input value={search} onChange={e=>{setSearch(e.target.value);setSelectedProd(null);}}
-              placeholder={lang==='af'?'Soek produk...':'Search product...'}
-              style={{flex:1,background:C.bg,border:`1.5px solid ${C.border}`,borderRadius:10,padding:'10px 12px',fontSize:14,outline:'none'}}/>
-            <Btn onClick={()=>{setScanning(true);setSearch('');}} variant='gold' small>📷 Scan</Btn>
-          </div>
-
-          {filteredProds.length>0&&!selectedProd&&(
-            <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:10,marginBottom:10,maxHeight:160,overflow:'auto'}}>
-              {filteredProds.slice(0,6).map(p=>(
-                <div key={p.id} onClick={()=>{setSelectedProd(p);setSearch('');setQty('1');setTimeout(()=>qtyRef.current&&qtyRef.current.focus(),80);}}
-                  style={{padding:'10px 12px',borderBottom:`1px solid ${C.border}`,cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                  <div>
-                    <div style={{fontWeight:700,fontSize:13}}>{lang==='af'&&p.nameAf?p.nameAf:p.name}</div>
-                    <div style={{fontSize:11,color:C.muted}}>📦 {lang==='af'?'Huidig':'Current'}: {typeof p.stock_qty==='number'?p.stock_qty:'—'}</div>
+          {/* ── MANUAL TAB ── */}
+          {tab==='manual'&&(<>
+            <div style={{background:'#EFF6FF',borderRadius:10,padding:'10px 12px',marginBottom:12,fontSize:12,color:'#1E40AF',lineHeight:1.5}}>
+              💡 {lang==='af'?'Skandeer strepieskode of soek produk handmatig':'Scan barcode or search manually'}
+            </div>
+            <div style={{display:'flex',gap:8,marginBottom:8}}>
+              <input value={search} onChange={e=>{setSearch(e.target.value);setSelectedProd(null);}}
+                placeholder={lang==='af'?'Soek produk...':'Search product...'}
+                style={{flex:1,background:C.bg,border:`1.5px solid ${C.border}`,borderRadius:10,padding:'10px 12px',fontSize:14,outline:'none'}}/>
+              <Btn onClick={()=>{setScanning(true);setSearch('');}} variant='gold' small>📷 Scan</Btn>
+            </div>
+            {filteredProds.length>0&&!selectedProd&&(
+              <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:10,marginBottom:10,maxHeight:160,overflow:'auto'}}>
+                {filteredProds.slice(0,6).map(p=>(
+                  <div key={p.id} onClick={()=>{setSelectedProd(p);setSearch('');setQty('1');setTimeout(()=>qtyRef.current&&qtyRef.current.focus(),80);}}
+                    style={{padding:'10px 12px',borderBottom:`1px solid ${C.border}`,cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                    <div>
+                      <div style={{fontWeight:700,fontSize:13}}>{lang==='af'&&p.nameAf?p.nameAf:p.name}</div>
+                      <div style={{fontSize:11,color:C.muted}}>📦 {typeof p.stock_qty==='number'?p.stock_qty:'—'}</div>
+                    </div>
+                    <Badge label={fmt(p.sellPrice)} color={C.navyLight}/>
                   </div>
-                  <Badge label={fmt(p.sellPrice)} color={C.navyLight}/>
+                ))}
+              </div>
+            )}
+            {notFound&&(
+              <div style={{background:C.dangerLight,border:`1px solid ${C.danger}`,borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:12,color:C.danger,fontWeight:600}}>
+                ⚠️ {lang==='af'?`Kode "${notFound}" nie gevind nie`:`Barcode "${notFound}" not found`}
+              </div>
+            )}
+            {selectedProd&&(
+              <div style={{background:C.successLight,border:`1px solid ${C.success}`,borderRadius:10,padding:'12px',marginBottom:10}}>
+                <div style={{fontWeight:800,fontSize:14,color:C.success,marginBottom:8}}>✓ {selectedProd.name}</div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr auto',gap:8,alignItems:'flex-end'}}>
+                  <div>
+                    <div style={{fontSize:12,color:C.muted,marginBottom:4}}>{lang==='af'?'Hoeveelheid ontvang:':'Quantity received:'}</div>
+                    <input ref={qtyRef} value={qty} onChange={e=>setQty(e.target.value)} type="number" min="1"
+                      onKeyDown={e=>e.key==='Enter'&&addItem()}
+                      style={{width:'100%',background:C.white,border:`2px solid ${C.success}`,borderRadius:8,padding:'10px 12px',fontSize:18,fontWeight:800,outline:'none',textAlign:'center'}}/>
+                  </div>
+                  <Btn onClick={addItem} variant='success'>+ {lang==='af'?'Voeg by':'Add'}</Btn>
                 </div>
-              ))}
-            </div>
-          )}
+              </div>
+            )}
+            {received.length>0&&(
+              <div style={{marginBottom:14}}>
+                <div style={{fontSize:12,fontWeight:700,color:C.muted,textTransform:'uppercase',marginBottom:6}}>{t.itemsToReceive}:</div>
+                {received.map(i=>(
+                  <div key={i.product.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',background:C.bg,borderRadius:8,padding:'8px 12px',marginBottom:6}}>
+                    <div>
+                      <div style={{fontWeight:700,fontSize:13}}>{i.product.name}</div>
+                      <div style={{fontSize:11,color:C.muted}}>{typeof i.product.stock_qty==='number'?i.product.stock_qty:0} → {(typeof i.product.stock_qty==='number'?i.product.stock_qty:0)+i.qty}</div>
+                    </div>
+                    <div style={{display:'flex',alignItems:'center',gap:8}}>
+                      <span style={{fontWeight:900,fontSize:16,color:C.success}}>+{i.qty}</span>
+                      <button onClick={()=>removeItem(i.product.id)} style={{background:C.dangerLight,border:`1px solid ${C.danger}`,color:C.danger,borderRadius:6,padding:'4px 8px',fontSize:11,cursor:'pointer',fontWeight:700}}>✕</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <Btn onClick={confirm} variant='success' style={{width:'100%',marginBottom:10}} disabled={received.length===0}>
+              ✓ {lang==='af'?'Dateer Voorraad Op':'Update Stock'} ({received.length})
+            </Btn>
+          </>)}
 
-          {notFound&&(
-            <div style={{background:C.dangerLight,border:`1px solid ${C.danger}`,borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:12,color:C.danger,fontWeight:600}}>
-              ⚠️ {lang==='af'?`Kode "${notFound}" nie gevind nie`:`Barcode "${notFound}" not found`}
-            </div>
-          )}
+          {/* ── SCAN SLIP TAB ── */}
+          {tab==='scan'&&(<>
+            {scanStatus==='idle'&&(
+              <div style={{textAlign:'center',padding:'28px 10px'}}>
+                <div style={{fontSize:48,marginBottom:12}}>🧾</div>
+                <div style={{fontWeight:800,fontSize:16,color:C.navyDark,marginBottom:6}}>Take a photo of your receipt</div>
+                <div style={{color:C.muted,fontSize:13,marginBottom:6,lineHeight:1.6}}>The app reads items and prices automatically.<br/>Good lighting = better results.</div>
+                <div style={{color:C.muted,fontSize:12,marginBottom:22}}>Works with Makro, Metro, Cash &amp; Carry slips.</div>
+                <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{display:'none'}} onChange={handleFile}/>
+                <Btn onClick={()=>fileRef.current.click()} variant='primary' style={{width:'100%',padding:'14px',fontSize:15}}>📸 Choose / Take Photo</Btn>
+              </div>
+            )}
+            {(scanStatus==='loading'||scanStatus==='processing')&&(
+              <div style={{textAlign:'center',padding:'44px 10px'}}>
+                <div style={{fontSize:40,marginBottom:14}}>⏳</div>
+                <div style={{fontWeight:700,fontSize:14,color:C.navyDark,marginBottom:6}}>{scanMsg}</div>
+                <div style={{color:C.muted,fontSize:12}}>Keep this window open</div>
+              </div>
+            )}
+            {scanStatus==='error'&&(
+              <div style={{textAlign:'center',padding:'28px 10px'}}>
+                <div style={{fontSize:40,marginBottom:10}}>⚠️</div>
+                <div style={{fontWeight:700,color:C.danger,marginBottom:16,fontSize:13}}>{scanMsg}</div>
+                <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{display:'none'}} onChange={handleFile}/>
+                <Btn onClick={()=>setScanStatus('idle')} variant='ghost' style={{marginRight:8}}>← Back</Btn>
+                <Btn onClick={()=>fileRef.current.click()} variant='primary'>📸 Try Again</Btn>
+              </div>
+            )}
+            {scanStatus==='review'&&(<>
+              <div style={{background:'#F0FDF4',borderRadius:10,padding:'9px 12px',marginBottom:10,fontSize:12,color:'#15803d'}}>
+                ✅ <strong>{scannedRows.length}</strong> items found. Match each to a product then confirm.
+              </div>
+              <div style={{maxHeight:360,overflowY:'auto',marginBottom:8}}>
+                {scannedRows.map((row,i)=>(
+                  <div key={i} style={{background:row.productId?C.bg:'#FFFBEB',border:`1px solid ${row.productId?C.border:C.amber}`,borderRadius:10,padding:'10px 12px',marginBottom:8}}>
+                    <div style={{fontSize:11,color:C.muted,marginBottom:6,fontStyle:'italic'}}>"{row.rawName}"</div>
+                    <select value={row.productId} onChange={e=>setScanRow(i,'productId',e.target.value)}
+                      style={{width:'100%',background:row.productId?C.bg:'#FEF3C7',border:`1.5px solid ${row.productId?C.border:C.amber}`,borderRadius:8,padding:'8px 10px',fontSize:13,outline:'none',marginBottom:6}}>
+                      <option value="">— skip this item —</option>
+                      {data.products.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                    {!row.productId&&(
+                      <button onClick={()=>openNewProd(i)} style={{width:'100%',background:'#EFF6FF',border:`1.5px solid ${C.navyLight}`,color:C.navyLight,borderRadius:8,padding:'7px 10px',fontSize:12,fontWeight:700,cursor:'pointer',marginBottom:6}}>➕ Add as New Product</button>
+                    )}
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr auto',gap:8,alignItems:'center'}}>
+                      <div>
+                        <div style={{fontSize:10,color:C.muted,marginBottom:2}}>QTY</div>
+                        <input value={row.qty} onChange={e=>setScanRow(i,'qty',e.target.value)} type="number" min="1"
+                          style={{width:'100%',background:C.white,border:`1.5px solid ${C.border}`,borderRadius:7,padding:'7px 8px',fontSize:14,fontWeight:800,outline:'none',textAlign:'center'}}/>
+                      </div>
+                      <div>
+                        <div style={{fontSize:10,color:C.muted,marginBottom:2}}>COST (R)</div>
+                        <input value={row.costPrice} onChange={e=>setScanRow(i,'costPrice',e.target.value)} type="number" min="0" step="0.01"
+                          style={{width:'100%',background:C.white,border:`1.5px solid ${C.border}`,borderRadius:7,padding:'7px 8px',fontSize:13,outline:'none',textAlign:'center'}}/>
+                      </div>
+                      <button onClick={()=>setScannedRows(r=>r.filter((_,idx)=>idx!==i))} style={{background:C.dangerLight,border:`1px solid ${C.danger}`,color:C.danger,borderRadius:7,padding:'7px 9px',cursor:'pointer',fontSize:12,fontWeight:700,marginTop:14}}>✕</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div style={{display:'flex',gap:8}}>
+                <Btn onClick={()=>{setScanStatus('idle');setScannedRows([]);fileRef.current&&(fileRef.current.value='');}} variant='ghost' small>← Rescan</Btn>
+                <Btn onClick={confirmScan} variant='success' style={{flex:1}}>✓ Add to Stock</Btn>
+              </div>
+            </>)}
+          </>)}
 
-          {selectedProd&&(
-            <div style={{background:C.successLight,border:`1px solid ${C.success}`,borderRadius:10,padding:'12px',marginBottom:10}}>
-              <div style={{fontWeight:800,fontSize:14,color:C.success,marginBottom:8}}>✓ {selectedProd.name}</div>
-              <div style={{display:'grid',gridTemplateColumns:'1fr auto',gap:8,alignItems:'flex-end'}}>
-                <div>
-                  <div style={{fontSize:12,color:C.muted,marginBottom:4}}>{lang==='af'?'Hoeveelheid ontvang:':'Quantity received:'}</div>
-                  <input ref={qtyRef} value={qty} onChange={e=>setQty(e.target.value)} type="number" min="1"
-                    onKeyDown={e=>e.key==='Enter'&&addItem()}
-                    style={{width:'100%',background:C.white,border:`2px solid ${C.success}`,borderRadius:8,padding:'10px 12px',fontSize:18,fontWeight:800,outline:'none',textAlign:'center'}}/>
+          {/* ── NEW PRODUCT BOTTOM-SHEET ── */}
+          {newProdModal!==null&&(
+            <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:5000,display:'flex',alignItems:'flex-end'}} onClick={()=>setNewProdModal(null)}>
+              <div onClick={e=>e.stopPropagation()} style={{background:'#fff',borderRadius:'20px 20px 0 0',padding:'24px 20px 36px',width:'100%',maxWidth:430,margin:'0 auto'}}>
+                <div style={{fontWeight:900,fontSize:17,color:C.navyDark,marginBottom:2}}>➕ Add New Product</div>
+                <div style={{fontSize:12,color:C.muted,marginBottom:18}}>Cost price pre-filled from receipt · Stock starts at 0</div>
+                <div style={{marginBottom:12}}>
+                  <div style={{fontSize:12,fontWeight:700,color:C.muted,marginBottom:4}}>PRODUCT NAME</div>
+                  <input value={newProdForm.name} onChange={e=>setNewProdForm(f=>({...f,name:e.target.value}))}
+                    placeholder="e.g. White Bread 700g"
+                    style={{width:'100%',background:C.bg,border:`1.5px solid ${C.border}`,borderRadius:10,padding:'11px 12px',fontSize:14,outline:'none',boxSizing:'border-box'}}/>
                 </div>
-                <Btn onClick={addItem} variant='success'>+ {lang==='af'?'Voeg by':'Add'}</Btn>
+                <div style={{marginBottom:12}}>
+                  <div style={{fontSize:12,fontWeight:700,color:C.muted,marginBottom:4}}>SELL PRICE (R)</div>
+                  <input value={newProdForm.sellPrice} onChange={e=>setNewProdForm(f=>({...f,sellPrice:e.target.value}))}
+                    type="number" min="0" step="0.01" placeholder="0.00"
+                    style={{width:'100%',background:C.bg,border:`1.5px solid ${C.border}`,borderRadius:10,padding:'11px 12px',fontSize:14,outline:'none',boxSizing:'border-box'}}/>
+                </div>
+                <div style={{marginBottom:16}}>
+                  <div style={{fontSize:12,fontWeight:700,color:C.muted,marginBottom:4}}>CATEGORY</div>
+                  <select value={newProdForm.category} onChange={e=>setNewProdForm(f=>({...f,category:e.target.value}))}
+                    style={{width:'100%',background:C.bg,border:`1.5px solid ${C.border}`,borderRadius:10,padding:'11px 12px',fontSize:14,outline:'none'}}>
+                    {['food','drinks','snacks','household','other'].map(cat=>(
+                      <option key={cat} value={cat}>{cat.charAt(0).toUpperCase()+cat.slice(1)}</option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{background:'#EFF6FF',borderRadius:8,padding:'9px 12px',fontSize:12,color:C.navyLight,marginBottom:18}}>
+                  💵 Cost from receipt: <strong>R {scannedRows[newProdModal]?.costPrice||'—'}</strong>
+                </div>
+                <Btn onClick={saveNewProduct} variant='primary' style={{width:'100%',padding:'14px',fontSize:15,marginBottom:8}}>Save Product</Btn>
+                <Btn onClick={()=>setNewProdModal(null)} variant='ghost' style={{width:'100%'}}>Cancel</Btn>
               </div>
             </div>
           )}
 
-          {received.length>0&&(
-            <div style={{marginBottom:14}}>
-              <div style={{fontSize:12,fontWeight:700,color:C.muted,textTransform:'uppercase',marginBottom:6}}>{t.itemsToReceive}:</div>
-              {received.map(i=>(
-                <div key={i.product.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',background:C.bg,borderRadius:8,padding:'8px 12px',marginBottom:6}}>
-                  <div>
-                    <div style={{fontWeight:700,fontSize:13}}>{i.product.name}</div>
-                    <div style={{fontSize:11,color:C.muted}}>
-                      {typeof i.product.stock_qty==='number'?i.product.stock_qty:0} → {(typeof i.product.stock_qty==='number'?i.product.stock_qty:0)+i.qty}
-                    </div>
-                  </div>
-                  <div style={{display:'flex',alignItems:'center',gap:8}}>
-                    <span style={{fontWeight:900,fontSize:16,color:C.success}}>+{i.qty}</span>
-                    <button onClick={()=>removeItem(i.product.id)} style={{background:C.dangerLight,border:`1px solid ${C.danger}`,color:C.danger,borderRadius:6,padding:'4px 8px',fontSize:11,cursor:'pointer',fontWeight:700}}>✕</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <Btn onClick={confirm} variant='success' style={{width:'100%',marginBottom:10}} disabled={received.length===0}>
-            ✓ {lang==='af'?'Dateer Voorraad Op':'Update Stock'} ({received.length} {lang==='af'?'produkte':'products'})
-          </Btn>
           <div style={{height:10}}/>
         </div>
       </Modal>

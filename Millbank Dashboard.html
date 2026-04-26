@@ -946,67 +946,286 @@ function CustomersSection({data,setData,setToast}){
 
 // ─── STOCK RECEIVE MODAL (Dashboard) ─────────────────────
 function StockReceiveModalDash({data,setData,onClose,setToast}){
-  const [rows,setRows]=React.useState([{productId:'',qty:''}]);
+  const [tab,setTab]=React.useState('manual');
+  const [rows,setRows]=React.useState([{productId:'',qty:'',costPrice:''}]);
+  const [scanStatus,setScanStatus]=React.useState('idle');
+  const [scanMsg,setScanMsg]=React.useState('');
+  const [scannedRows,setScannedRows]=React.useState([]);
+  const [newProdModal,setNewProdModal]=React.useState(null);
+  const [newProdForm,setNewProdForm]=React.useState({name:'',sellPrice:'',category:'food'});
+  const fileRef=React.useRef();
 
-  function setRow(i,field,val){setRows(r=>r.map((row,idx)=>idx===i?{...row,[field]:val}:row));}
-  function addRow(){setRows(r=>[...r,{productId:'',qty:''}]);}
+  function setRow(i,f,v){setRows(r=>r.map((row,idx)=>idx===i?{...row,[f]:v}:row));}
+  function addRow(){setRows(r=>[...r,{productId:'',qty:'',costPrice:''}]);}
   function removeRow(i){setRows(r=>r.filter((_,idx)=>idx!==i));}
+  function setScanRow(i,f,v){setScannedRows(r=>r.map((row,idx)=>idx===i?{...row,[f]:v}:row));}
 
-  function confirm(){
+  function fuzzyMatch(raw){
+    const words=raw.toLowerCase().split(/\s+/).filter(w=>w.length>2);
+    let bestId='',bestScore=0;
+    data.products.forEach(p=>{
+      const pw=[...p.name.toLowerCase().split(/\s+/),...(p.nameAf||'').toLowerCase().split(/\s+/)];
+      const matches=words.filter(w=>pw.some(x=>x.includes(w)||w.includes(x))).length;
+      const score=words.length>0?matches/Math.max(words.length,pw.filter(w=>w.length>2).length):0;
+      if(score>bestScore&&score>=0.35){bestScore=score;bestId=p.id;}
+    });
+    return bestId;
+  }
+
+  function parseReceipt(text){
+    const skip=/\b(total|subtotal|vat|tax|change|cash|receipt|invoice|date|time|thank|cashier|till|register|loyalty|points|balance|welcome|tender|card|pin|approved|amount)\b/i;
+    const items=[];
+    text.split('\n').map(l=>l.trim()).filter(l=>l.length>3).forEach(line=>{
+      if(skip.test(line))return;
+      const pm=line.match(/R?\s*(\d{1,5}[.,]\d{2})(?:\s|$)/);
+      if(!pm)return;
+      const price=parseFloat(pm[1].replace(',','.'));
+      if(price<=0||price>10000)return;
+      const qm=line.match(/\b(\d+)\s*[xX@]|[xX@]\s*(\d+)/);
+      const qty=qm?parseInt(qm[1]||qm[2]):1;
+      const priceIdx=line.lastIndexOf(pm[0].trim());
+      const raw=line.substring(0,priceIdx>0?priceIdx:line.length)
+        .replace(/\b\d+\s*[xX@]\s*|\s*[xX@]\s*\d+/gi,'')
+        .replace(/[^a-zA-Z0-9\s\-&']/g,' ').replace(/\s+/g,' ').trim();
+      if(raw.length<2)return;
+      items.push({rawName:raw,productId:fuzzyMatch(raw),qty:String(qty),costPrice:String(price)});
+    });
+    return items;
+  }
+
+  async function handleFile(e){
+    const file=e.target.files[0];
+    if(!file)return;
+    setScanStatus('loading');setScanMsg('Loading OCR engine...');
+    try{
+      if(!window.Tesseract){
+        await new Promise((res,rej)=>{
+          const s=document.createElement('script');
+          s.src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+          s.onload=res;s.onerror=()=>rej(new Error('Could not load OCR library. Check your internet connection.'));
+          document.head.appendChild(s);
+        });
+      }
+      setScanStatus('processing');setScanMsg('Reading receipt — this may take 15–30 seconds...');
+      const result=await window.Tesseract.recognize(file,'eng');
+      const items=parseReceipt(result.data.text);
+      if(items.length===0){setScanStatus('error');setScanMsg('No line items detected. Try a clearer, well-lit photo of the receipt.');}
+      else{setScannedRows(items);setScanStatus('review');}
+    }catch(err){
+      setScanStatus('error');setScanMsg(err.message||'OCR failed. Please try again.');
+    }
+  }
+
+  function applyStock(valid,extraProducts){
+    const allProducts=[...(extraProducts||[]),...data.products.map(p=>{
+      const item=valid.find(r=>r.productId===p.id);
+      if(!item)return p;
+      const cp=parseFloat(item.costPrice);
+      return{...p,stock_qty:(typeof p.stock_qty==='number'?p.stock_qty:0)+parseInt(item.qty),...(cp>0?{costPrice:cp}:{})};
+    })];
+    const nd={...data,products:allProducts};
+    setData(nd);saveData(nd);
+  }
+
+  function openNewProd(i){
+    const raw=scannedRows[i]?.rawName||'';
+    const clean=raw.replace(/\b\w/g,c=>c.toUpperCase()).slice(0,60);
+    setNewProdForm({name:clean,sellPrice:'',category:'food'});
+    setNewProdModal(i);
+  }
+
+  function saveNewProduct(){
+    if(!newProdForm.name.trim()){alert('Please enter a product name.');return;}
+    const sell=parseFloat(newProdForm.sellPrice);
+    if(isNaN(sell)||sell<=0){alert('Please enter a valid sell price.');return;}
+    const cost=parseFloat(scannedRows[newProdModal]?.costPrice)||0;
+    const markup=cost>0?Math.round((sell-cost)/cost*100):0;
+    const newProd={id:uid(),barcode:'',name:newProdForm.name.trim(),nameAf:'',
+      costPrice:cost,sellPrice:sell,markup,category:newProdForm.category,stock_qty:0};
+    setScanRow(newProdModal,'productId',newProd.id);
+    const nd={...data,products:[...data.products,newProd]};
+    setData(nd);saveData(nd);
+    setNewProdModal(null);
+  }
+
+  function confirmManual(){
     const valid=rows.filter(r=>r.productId&&parseInt(r.qty)>0);
     if(valid.length===0){alert('Add at least one product with a quantity greater than 0.');return;}
-    const updatedProducts=data.products.map(p=>{
-      const items=valid.filter(r=>r.productId===p.id);
-      if(items.length===0)return p;
-      const totalQty=items.reduce((s,r)=>s+parseInt(r.qty),0);
-      return{...p,stock_qty:(typeof p.stock_qty==='number'?p.stock_qty:0)+totalQty};
-    });
-    const nd={...data,products:updatedProducts};
-    setData(nd);saveData(nd);
-    onClose();
-    setToast(`Stock updated for ${valid.length} product(s)!`);
+    applyStock(valid);onClose();setToast(`Stock updated for ${valid.length} product(s)!`);
+  }
+
+  function confirmScan(){
+    const valid=scannedRows.filter(r=>r.productId&&parseInt(r.qty)>0);
+    if(valid.length===0){alert('Match at least one product to a line item.');return;}
+    applyStock(valid);onClose();setToast(`Stock updated for ${valid.length} product(s) from scanned receipt!`);
   }
 
   return(
-    <Modal title="📥 Receive Stock" onClose={onClose} width={560}>
-      <div style={{marginBottom:14,background:'#EFF6FF',borderRadius:10,padding:'12px 16px',fontSize:13,color:'#1E40AF',lineHeight:1.6}}>
-        💡 Enter each product you received in this delivery. Quantities will be <strong>added</strong> to current stock levels.
+    <Modal title="📥 Receive Stock" onClose={onClose} width={640}>
+      <div style={{display:'flex',gap:8,marginBottom:16}}>
+        {[['manual','📋 Manual Entry'],['scan','📸 Scan Receipt']].map(([t,label])=>(
+          <button key={t} onClick={()=>setTab(t)} style={{flex:1,padding:'10px',borderRadius:10,border:'none',fontWeight:700,fontSize:13,cursor:'pointer',background:tab===t?C.navy:'#F3F4F6',color:tab===t?'#fff':C.text}}>{label}</button>
+        ))}
       </div>
-      <table style={{width:'100%',borderCollapse:'collapse',marginBottom:12}}>
-        <thead>
-          <tr style={{background:C.bg}}>
-            {['Product','Qty Received',''].map(h=>(
-              <th key={h} style={{padding:'8px 12px',textAlign:'left',fontSize:11,fontWeight:800,color:C.muted,textTransform:'uppercase'}}>{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row,i)=>(
-            <tr key={i} style={{borderBottom:`1px solid ${C.border}`}}>
-              <td style={{padding:'8px 12px'}}>
-                <select value={row.productId} onChange={e=>setRow(i,'productId',e.target.value)}
-                  style={{width:'100%',background:C.bg,border:`1.5px solid ${C.border}`,borderRadius:8,padding:'8px 10px',fontSize:13,outline:'none'}}>
-                  <option value="">Select product...</option>
-                  {data.products.map(p=><option key={p.id} value={p.id}>{p.name} (stock: {typeof p.stock_qty==='number'?p.stock_qty:'—'})</option>)}
-                </select>
-              </td>
-              <td style={{padding:'8px 12px',width:120}}>
-                <input value={row.qty} onChange={e=>setRow(i,'qty',e.target.value)} type="number" min="1" placeholder="0"
-                  style={{width:'100%',background:C.bg,border:`1.5px solid ${C.border}`,borderRadius:8,padding:'8px 10px',fontSize:14,fontWeight:700,outline:'none',textAlign:'center'}}/>
-              </td>
-              <td style={{padding:'8px 12px',width:40}}>
-                {rows.length>1&&<button onClick={()=>removeRow(i)} style={{background:C.dangerLight,border:`1px solid ${C.danger}`,color:C.danger,borderRadius:6,padding:'5px 8px',cursor:'pointer',fontSize:12,fontWeight:700}}>✕</button>}
-              </td>
+
+      {tab==='manual'&&(<>
+        <div style={{marginBottom:12,background:'#EFF6FF',borderRadius:10,padding:'10px 14px',fontSize:13,color:'#1E40AF',lineHeight:1.5}}>
+          💡 Quantities will be <strong>added</strong> to current stock. Cost price (optional) updates the product's buy price.
+        </div>
+        <table style={{width:'100%',borderCollapse:'collapse',marginBottom:12}}>
+          <thead>
+            <tr style={{background:C.bg}}>
+              {['Product','Qty','Cost Price (R)',''].map(h=>(
+                <th key={h} style={{padding:'8px 10px',textAlign:'left',fontSize:11,fontWeight:800,color:C.muted,textTransform:'uppercase'}}>{h}</th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
-      <div style={{display:'flex',gap:10}}>
-        <Btn onClick={addRow} variant='ghost' size='sm'>+ Add Row</Btn>
-        <div style={{flex:1}}/>
-        <Btn onClick={onClose} variant='ghost'>Cancel</Btn>
-        <Btn onClick={confirm} variant='success'>✓ Update Stock</Btn>
-      </div>
+          </thead>
+          <tbody>
+            {rows.map((row,i)=>(
+              <tr key={i} style={{borderBottom:`1px solid ${C.border}`}}>
+                <td style={{padding:'6px 10px'}}>
+                  <select value={row.productId} onChange={e=>setRow(i,'productId',e.target.value)}
+                    style={{width:'100%',background:C.bg,border:`1.5px solid ${C.border}`,borderRadius:8,padding:'7px 10px',fontSize:13,outline:'none'}}>
+                    <option value="">Select product...</option>
+                    {data.products.map(p=><option key={p.id} value={p.id}>{p.name} (stock: {typeof p.stock_qty==='number'?p.stock_qty:'—'})</option>)}
+                  </select>
+                </td>
+                <td style={{padding:'6px 10px',width:80}}>
+                  <input value={row.qty} onChange={e=>setRow(i,'qty',e.target.value)} type="number" min="1" placeholder="0"
+                    style={{width:'100%',background:C.bg,border:`1.5px solid ${C.border}`,borderRadius:8,padding:'7px 8px',fontSize:14,fontWeight:700,outline:'none',textAlign:'center'}}/>
+                </td>
+                <td style={{padding:'6px 10px',width:120}}>
+                  <input value={row.costPrice} onChange={e=>setRow(i,'costPrice',e.target.value)} type="number" min="0" step="0.01" placeholder="0.00"
+                    style={{width:'100%',background:C.bg,border:`1.5px solid ${C.border}`,borderRadius:8,padding:'7px 8px',fontSize:13,outline:'none',textAlign:'center'}}/>
+                </td>
+                <td style={{padding:'6px 10px',width:36}}>
+                  {rows.length>1&&<button onClick={()=>removeRow(i)} style={{background:C.dangerLight,border:`1px solid ${C.danger}`,color:C.danger,borderRadius:6,padding:'4px 8px',cursor:'pointer',fontSize:12,fontWeight:700}}>✕</button>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div style={{display:'flex',gap:10}}>
+          <Btn onClick={addRow} variant='ghost' size='sm'>+ Add Row</Btn>
+          <div style={{flex:1}}/>
+          <Btn onClick={onClose} variant='ghost'>Cancel</Btn>
+          <Btn onClick={confirmManual} variant='success'>✓ Update Stock</Btn>
+        </div>
+      </>)}
+
+      {tab==='scan'&&(<>
+        {scanStatus==='idle'&&(
+          <div style={{textAlign:'center',padding:'32px 20px'}}>
+            <div style={{fontSize:52,marginBottom:16}}>🧾</div>
+            <div style={{fontWeight:800,fontSize:17,color:C.navyDark,marginBottom:8}}>Take a photo of your purchase receipt</div>
+            <div style={{color:C.muted,fontSize:13,marginBottom:8,lineHeight:1.7}}>
+              The app will read the items and prices automatically.<br/>
+              Best results: good lighting, receipt flat, no shadows.
+            </div>
+            <div style={{color:C.muted,fontSize:12,marginBottom:24}}>Works with Makro, Metro, Cash &amp; Carry receipts.</div>
+            <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{display:'none'}} onChange={handleFile}/>
+            <Btn onClick={()=>fileRef.current.click()} variant='primary' style={{padding:'13px 32px',fontSize:15}}>📸 Choose / Take Photo</Btn>
+          </div>
+        )}
+
+        {(scanStatus==='loading'||scanStatus==='processing')&&(
+          <div style={{textAlign:'center',padding:'48px 20px'}}>
+            <div style={{fontSize:44,marginBottom:16,animation:'spin 1s linear infinite'}}>⏳</div>
+            <div style={{fontWeight:700,fontSize:15,color:C.navyDark,marginBottom:8}}>{scanMsg}</div>
+            <div style={{color:C.muted,fontSize:12}}>Please keep this window open</div>
+          </div>
+        )}
+
+        {scanStatus==='error'&&(
+          <div style={{textAlign:'center',padding:'32px 20px'}}>
+            <div style={{fontSize:44,marginBottom:12}}>⚠️</div>
+            <div style={{fontWeight:700,color:C.danger,marginBottom:16,fontSize:14}}>{scanMsg}</div>
+            <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{display:'none'}} onChange={handleFile}/>
+            <Btn onClick={()=>setScanStatus('idle')} variant='ghost' style={{marginRight:8}}>← Back</Btn>
+            <Btn onClick={()=>fileRef.current.click()} variant='primary'>📸 Try Again</Btn>
+          </div>
+        )}
+
+        {scanStatus==='review'&&(<>
+          <div style={{marginBottom:10,background:'#F0FDF4',borderRadius:10,padding:'10px 14px',fontSize:13,color:'#15803d'}}>
+            ✅ Found <strong>{scannedRows.length}</strong> line items. Match each to a product, adjust qty/price if needed, then confirm.
+          </div>
+          <div style={{maxHeight:380,overflowY:'auto',marginBottom:8}}>
+            <table style={{width:'100%',borderCollapse:'collapse'}}>
+              <thead>
+                <tr style={{background:C.bg,position:'sticky',top:0,zIndex:1}}>
+                  {['Scanned Text','Match to Product','Qty','Cost (R)',''].map(h=>(
+                    <th key={h} style={{padding:'7px 8px',textAlign:'left',fontSize:10,fontWeight:800,color:C.muted,textTransform:'uppercase',borderBottom:`1px solid ${C.border}`}}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {scannedRows.map((row,i)=>(
+                  <tr key={i} style={{borderBottom:`1px solid ${C.border}`,background:row.productId?'transparent':'#FFFBEB'}}>
+                    <td style={{padding:'6px 8px',fontSize:11,color:C.muted,maxWidth:120,wordBreak:'break-word',lineHeight:1.3}}>{row.rawName}</td>
+                    <td style={{padding:'6px 8px',minWidth:160}}>
+                      <select value={row.productId} onChange={e=>setScanRow(i,'productId',e.target.value)}
+                        style={{width:'100%',background:row.productId?C.bg:'#FEF3C7',border:`1.5px solid ${row.productId?C.border:C.amber}`,borderRadius:7,padding:'6px 7px',fontSize:12,outline:'none',marginBottom:4}}>
+                        <option value="">— skip —</option>
+                        {data.products.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+                      </select>
+                      {!row.productId&&<button onClick={()=>openNewProd(i)} style={{width:'100%',background:'#EFF6FF',border:`1.5px solid ${C.navyLight}`,color:C.navyLight,borderRadius:7,padding:'4px 8px',fontSize:11,fontWeight:700,cursor:'pointer'}}>➕ Add as New Product</button>}
+                    </td>
+                    <td style={{padding:'6px 8px',width:60}}>
+                      <input value={row.qty} onChange={e=>setScanRow(i,'qty',e.target.value)} type="number" min="1"
+                        style={{width:'100%',background:C.bg,border:`1.5px solid ${C.border}`,borderRadius:7,padding:'5px 6px',fontSize:13,fontWeight:700,outline:'none',textAlign:'center'}}/>
+                    </td>
+                    <td style={{padding:'6px 8px',width:80}}>
+                      <input value={row.costPrice} onChange={e=>setScanRow(i,'costPrice',e.target.value)} type="number" min="0" step="0.01"
+                        style={{width:'100%',background:C.bg,border:`1.5px solid ${C.border}`,borderRadius:7,padding:'5px 6px',fontSize:13,outline:'none',textAlign:'center'}}/>
+                    </td>
+                    <td style={{padding:'6px 8px',width:30}}>
+                      <button onClick={()=>setScannedRows(r=>r.filter((_,idx)=>idx!==i))} style={{background:C.dangerLight,border:`1px solid ${C.danger}`,color:C.danger,borderRadius:6,padding:'3px 7px',cursor:'pointer',fontSize:11}}>✕</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div style={{fontSize:11,color:C.muted,marginBottom:10}}>Rows in yellow have no product matched — select one or they will be skipped.</div>
+          <div style={{display:'flex',gap:10}}>
+            <Btn onClick={()=>{setScanStatus('idle');setScannedRows([]);fileRef.current&&(fileRef.current.value='');}} variant='ghost' size='sm'>← Rescan</Btn>
+            <div style={{flex:1}}/>
+            <Btn onClick={onClose} variant='ghost'>Cancel</Btn>
+            <Btn onClick={confirmScan} variant='success'>✓ Add to Stock</Btn>
+          </div>
+        </>)}
+      </>)}
+
+      {newProdModal!==null&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:5000,display:'flex',alignItems:'center',justifyContent:'center'}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:'#fff',borderRadius:16,padding:'28px 32px',width:400,boxShadow:'0 12px 40px rgba(0,0,0,0.3)'}}>
+            <div style={{fontWeight:900,fontSize:17,color:C.navyDark,marginBottom:4}}>➕ Add New Product</div>
+            <div style={{fontSize:12,color:C.muted,marginBottom:20}}>Cost price pre-filled from receipt · Stock qty starts at 0</div>
+            <FormField label="Product Name">
+              <TextInput value={newProdForm.name} onChange={e=>setNewProdForm(f=>({...f,name:e.target.value}))} placeholder="e.g. White Bread 700g"/>
+            </FormField>
+            <FormField label="Sell Price (R)" note="What you charge customers">
+              <TextInput value={newProdForm.sellPrice} onChange={e=>setNewProdForm(f=>({...f,sellPrice:e.target.value}))} type="number" min="0" step="0.01" placeholder="0.00"/>
+            </FormField>
+            <FormField label="Category">
+              <select value={newProdForm.category} onChange={e=>setNewProdForm(f=>({...f,category:e.target.value}))}
+                style={{width:'100%',background:C.bg,border:`1.5px solid ${C.border}`,borderRadius:8,padding:'9px 12px',fontSize:14,outline:'none'}}>
+                {['food','drinks','snacks','household','other'].map(cat=>(
+                  <option key={cat} value={cat}>{cat.charAt(0).toUpperCase()+cat.slice(1)}</option>
+                ))}
+              </select>
+            </FormField>
+            <div style={{background:'#EFF6FF',borderRadius:8,padding:'10px 14px',fontSize:12,color:C.navyLight,marginBottom:20}}>
+              💵 Cost price from receipt: <strong>R {scannedRows[newProdModal]?.costPrice||'—'}</strong>
+            </div>
+            <div style={{display:'flex',gap:10}}>
+              <Btn onClick={()=>setNewProdModal(null)} variant='ghost' style={{flex:1}}>Cancel</Btn>
+              <Btn onClick={saveNewProduct} variant='primary' style={{flex:1}}>Save Product</Btn>
+            </div>
+          </div>
+        </div>
+      )}
     </Modal>
   );
 }
