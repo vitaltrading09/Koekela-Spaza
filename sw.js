@@ -1,7 +1,7 @@
-const CACHE = 'koekela-v13';
+const CACHE = 'millbank-v1';
 const PRECACHE = [
-  './Koekela%20App.html',
-  './Koekela%20Dashboard.html',
+  './Millbank%20App.html',
+  './Millbank%20Dashboard.html',
   './manifest.json',
   './icon.svg',
 ];

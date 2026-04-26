@@ -1,0 +1,2590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Millbank">
+<meta name="theme-color" content="#1B3D6F">
+<title>Millbank Shop</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js" crossorigin="anonymous"></script>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  @keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-6px)}80%{transform:translateX(4px)}}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+  body{
+    background:linear-gradient(135deg,#0f2743 0%,#1B3D6F 60%,#2a5298 100%);
+    min-height:100vh;display:flex;align-items:center;justify-content:center;
+    font-family:'Nunito',sans-serif;
+  }
+  @media(max-width:430px){body{background:#F2F2F7;align-items:flex-start;justify-content:flex-start;}}
+  @media(display-mode:standalone){body{background:#F2F2F7;align-items:flex-start;justify-content:flex-start;}}
+  ::-webkit-scrollbar{width:0;height:0;}
+  input,select,textarea,button{font-family:'Nunito',sans-serif;}
+  .pin-btn:active{background:rgba(255,255,255,0.3)!important;}
+  /* Lock app to exactly the visible viewport on mobile — most reliable approach */
+  .mobile-app-root{position:fixed;top:0;left:0;right:0;bottom:0;overflow:hidden;}
+  @media(max-width:430px){body{overflow:hidden;height:100%;}}
+  @media print{
+    body.invoice-open *{visibility:hidden;}
+    body.invoice-open .invoice-print-area,
+    body.invoice-open .invoice-print-area *{visibility:visible;}
+    body.invoice-open .invoice-print-area{
+      position:fixed;top:0;left:0;width:100%;
+      padding:24px;background:#fff;box-shadow:none!important;border-radius:0!important;
+    }
+  }
+</style>
+<script>
+  if('serviceWorker' in navigator){
+    window.addEventListener('load',()=>{
+      navigator.serviceWorker.register('./sw.js').catch(()=>{});
+    });
+  }
+</script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+
+// ─────────────────────────────────────────────────────────────
+// iOS 26 FRAME COMPONENTS (inlined from ios-frame.jsx)
+// ─────────────────────────────────────────────────────────────
+function IOSStatusBar({dark=false,time='9:41'}){
+  const c=dark?'#fff':'#000';
+  return(
+    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 24px 0',boxSizing:'border-box',position:'relative',zIndex:20,width:'100%'}}>
+      <span style={{fontFamily:'-apple-system,"SF Pro",system-ui',fontWeight:590,fontSize:16,color:c}}>{time}</span>
+      <div style={{display:'flex',alignItems:'center',gap:7,paddingTop:1}}>
+        <svg width="19" height="12" viewBox="0 0 19 12"><rect x="0" y="7.5" width="3.2" height="4.5" rx="0.7" fill={c}/><rect x="4.8" y="5" width="3.2" height="7" rx="0.7" fill={c}/><rect x="9.6" y="2.5" width="3.2" height="9.5" rx="0.7" fill={c}/><rect x="14.4" y="0" width="3.2" height="12" rx="0.7" fill={c}/></svg>
+        <svg width="17" height="12" viewBox="0 0 17 12"><path d="M8.5 3.2C10.8 3.2 12.9 4.1 14.4 5.6L15.5 4.5C13.7 2.7 11.2 1.5 8.5 1.5C5.8 1.5 3.3 2.7 1.5 4.5L2.6 5.6C4.1 4.1 6.2 3.2 8.5 3.2Z" fill={c}/><path d="M8.5 6.8C9.9 6.8 11.1 7.3 12 8.2L13.1 7.1C11.8 5.9 10.2 5.1 8.5 5.1C6.8 5.1 5.2 5.9 3.9 7.1L5 8.2C5.9 7.3 7.1 6.8 8.5 6.8Z" fill={c}/><circle cx="8.5" cy="10.5" r="1.5" fill={c}/></svg>
+        <svg width="27" height="13" viewBox="0 0 27 13"><rect x="0.5" y="0.5" width="23" height="12" rx="3.5" stroke={c} strokeOpacity="0.35" fill="none"/><rect x="2" y="2" width="20" height="9" rx="2" fill={c}/><path d="M25 4.5V8.5C25.8 8.2 26.5 7.2 26.5 6.5C26.5 5.8 25.8 4.8 25 4.5Z" fill={c} fillOpacity="0.4"/></svg>
+      </div>
+    </div>
+  );
+}
+
+function IOSGlassPill({children,dark=false,style={}}){
+  return(
+    <div style={{height:44,minWidth:44,borderRadius:9999,position:'relative',overflow:'hidden',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:dark?'0 2px 6px rgba(0,0,0,0.35)':'0 1px 3px rgba(0,0,0,0.07)',...style}}>
+      <div style={{position:'absolute',inset:0,borderRadius:9999,backdropFilter:'blur(12px) saturate(180%)',WebkitBackdropFilter:'blur(12px) saturate(180%)',background:dark?'rgba(120,120,128,0.28)':'rgba(255,255,255,0.5)'}}/>
+      <div style={{position:'absolute',inset:0,borderRadius:9999,boxShadow:dark?'inset 1.5px 1.5px 1px rgba(255,255,255,0.15)':'inset 1.5px 1.5px 1px rgba(255,255,255,0.7)',border:dark?'0.5px solid rgba(255,255,255,0.15)':'0.5px solid rgba(0,0,0,0.06)'}}/>
+      <div style={{position:'relative',zIndex:1,display:'flex',alignItems:'center',padding:'0 4px'}}>{children}</div>
+    </div>
+  );
+}
+
+function IOSNavBar({title='Title',dark=false}){
+  const muted=dark?'rgba(255,255,255,0.6)':'#404040';
+  const text=dark?'#fff':'#000';
+  const pill=(content)=>(
+    <IOSGlassPill dark={dark}><div style={{width:36,height:36,display:'flex',alignItems:'center',justifyContent:'center'}}>{content}</div></IOSGlassPill>
+  );
+  return(
+    <div style={{display:'flex',flexDirection:'column',gap:10,paddingTop:62,paddingBottom:10,position:'relative',zIndex:5}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 16px'}}>
+        {pill(<svg width="12" height="20" viewBox="0 0 12 20" fill="none"><path d="M10 2L2 10l8 8" stroke={muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>)}
+        {pill(<svg width="22" height="6" viewBox="0 0 22 6"><circle cx="3" cy="3" r="2.5" fill={muted}/><circle cx="11" cy="3" r="2.5" fill={muted}/><circle cx="19" cy="3" r="2.5" fill={muted}/></svg>)}
+      </div>
+      <div style={{padding:'0 16px',fontFamily:'-apple-system,system-ui',fontSize:34,fontWeight:700,lineHeight:'41px',color:text,letterSpacing:0.4}}>{title}</div>
+    </div>
+  );
+}
+
+function IOSListRow({title,detail,icon,chevron=true,isLast=false,dark=false}){
+  const text=dark?'#fff':'#000';
+  const sec=dark?'rgba(235,235,245,0.6)':'rgba(60,60,67,0.6)';
+  const ter=dark?'rgba(235,235,245,0.3)':'rgba(60,60,67,0.3)';
+  const sep=dark?'rgba(84,84,88,0.65)':'rgba(60,60,67,0.12)';
+  return(
+    <div style={{display:'flex',alignItems:'center',minHeight:52,padding:'0 16px',position:'relative',fontFamily:'-apple-system,system-ui',fontSize:17,letterSpacing:-0.43}}>
+      {icon&&<div style={{width:30,height:30,borderRadius:7,background:icon,marginRight:12,flexShrink:0}}/>}
+      <div style={{flex:1,color:text}}>{title}</div>
+      {detail&&<span style={{color:sec,marginRight:6}}>{detail}</span>}
+      {chevron&&<svg width="8" height="14" viewBox="0 0 8 14" style={{flexShrink:0}}><path d="M1 1l6 6-6 6" stroke={ter} strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+      {!isLast&&<div style={{position:'absolute',bottom:0,right:0,left:icon?58:16,height:0.5,background:sep}}/>}
+    </div>
+  );
+}
+
+function IOSList({header,children,dark=false}){
+  const hc=dark?'rgba(235,235,245,0.6)':'rgba(60,60,67,0.6)';
+  const bg=dark?'#1C1C1E':'#fff';
+  return(
+    <div>
+      {header&&<div style={{fontFamily:'-apple-system,system-ui',fontSize:13,color:hc,textTransform:'uppercase',padding:'8px 36px 6px',letterSpacing:-0.08}}>{header}</div>}
+      <div style={{background:bg,borderRadius:26,margin:'0 16px',overflow:'hidden'}}>{children}</div>
+    </div>
+  );
+}
+
+function IOSDevice({children,width=402,height=874,dark=false,title}){
+  return(
+    <div style={{width,height,borderRadius:48,overflow:'hidden',position:'relative',background:dark?'#000':'#F2F2F7',boxShadow:'0 40px 80px rgba(0,0,0,0.18),0 0 0 1px rgba(0,0,0,0.12)',fontFamily:'-apple-system,system-ui,sans-serif',WebkitFontSmoothing:'antialiased'}}>
+      <div style={{position:'absolute',top:11,left:'50%',transform:'translateX(-50%)',width:126,height:37,borderRadius:24,background:'#000',zIndex:50}}/>
+      <div style={{position:'absolute',top:0,left:0,right:0,zIndex:10}}><IOSStatusBar dark={dark}/></div>
+      <div style={{height:'100%',display:'flex',flexDirection:'column'}}>
+        {title!==undefined&&<IOSNavBar title={title} dark={dark}/>}
+        <div style={{flex:1,overflow:'auto'}}>{children}</div>
+      </div>
+      <div style={{position:'absolute',bottom:0,left:0,right:0,zIndex:60,height:34,display:'flex',justifyContent:'center',alignItems:'flex-end',paddingBottom:8,pointerEvents:'none'}}>
+        <div style={{width:139,height:5,borderRadius:100,background:dark?'rgba(255,255,255,0.7)':'rgba(0,0,0,0.25)'}}/>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// TRANSLATIONS
+// ─────────────────────────────────────────────────────────────
+const T={
+  en:{
+    home:'Home',inventory:'Stock',sale:'Sale',customers:'Customers',reports:'Reports',
+    totalCredit:'Total Credit',outstanding:'Outstanding',settled:'Settled',
+    newSale:'New Sale',addProduct:'Add Product',addCustomer:'Add Customer',
+    scanBarcode:'Scan Barcode',selectCustomer:'Select Customer',
+    confirm:'Confirm',cancel:'Cancel',save:'Save',undo:'Undo Last Item',
+    deleteItem:'Remove Item',edit:'Edit',settle:'Mark as Settled',
+    productName:'Product Name',barcode:'Barcode',costPrice:'Cost Price (R)',
+    sellPrice:'Sell Price (R)',markup:'Markup %',customerName:'Customer Name',
+    phone:'Phone Number',balance:'Balance',date:'Date',total:'Total',items:'items',
+    report:'Monthly Report',noTransactions:'No transactions yet',
+    confirmSale:'Confirm & Add to Credit',qty:'Qty',search:'Search...',
+    noProducts:'No products yet — tap + to add.',
+    noCustomers:'No customers yet — tap + to add.',
+    basket:'Basket',emptyBasket:'Tap a product below or scan a barcode to add items',
+    creditLog:'Credit Log',back:'Back',grandTotal:'Grand Total',
+    todaySales:"Today's Sales",allClear:'All Clear',deductNote:'Will be deducted from end-of-month pay',
+    settleConfirm:'Are you sure? This marks all outstanding items as paid.',
+    yesSettle:'Yes, Mark Settled',addedToCredit:'Sale added to credit!',
+    productExists:'A product with this barcode already exists.',
+    enterBarcode:'Enter barcode number',enterName:'Enter product name',
+    category:'Category',food:'Food',drinks:'Drinks',snacks:'Snacks',
+    household:'Household',other:'Other',
+    noCameraFallback:'Camera unavailable — enter barcode below',
+    openDashboard:'Open Computer Dashboard',allMonths:'All Time',
+    settings:'Settings & Backup',backupData:'Download Backup',
+    restoreData:'Restore from File',deleteTransaction:'Delete this transaction',
+    deleteCustomer:'Delete Customer',
+    deleteCustomerConfirm:'Delete this customer and ALL their transactions?',
+    autoCalc:'Auto-calculate from cost + markup',
+    newBalance:'New Balance after this sale',
+    stepOf:'Step',of:'of',perItem:'each',removeFromBasket:'Remove',
+    stockQty:'Stock',receiveStock:'Receive Stock',lowStock:'Low Stock Alert',
+    outOfStock:'Out of Stock',stockUpdated:'Stock updated!',itemsToReceive:'Items to receive',
+  },
+  af:{
+    home:'Tuis',inventory:'Voorraad',sale:'Verkoop',customers:'Kliente',reports:'Verslag',
+    totalCredit:'Totale Krediet',outstanding:'Uitstaande',settled:'Vereffend',
+    newSale:'Nuwe Verkoop',addProduct:'Voeg Produk By',addCustomer:'Voeg Kliënt By',
+    scanBarcode:'Skandeer Kode',selectCustomer:'Kies Kliënt',
+    confirm:'Bevestig',cancel:'Kanselleer',save:'Stoor',undo:'Ontdoen Laaste',
+    deleteItem:'Verwyder Item',edit:'Wysig',settle:'Merk as Vereffend',
+    productName:'Produknaam',barcode:'Strepieskode',costPrice:'Kosprys (R)',
+    sellPrice:'Verkoopprys (R)',markup:'Opslag %',customerName:'Kliëntnaam',
+    phone:'Telefoonnommer',balance:'Saldo',date:'Datum',total:'Totaal',items:'items',
+    report:'Maandelikse Verslag',noTransactions:'Geen transaksies',
+    confirmSale:'Bevestig & Voeg by Krediet',qty:'Hoeveelh.',search:'Soek...',
+    noProducts:'Geen produkte — tik + om by te voeg.',
+    noCustomers:'Geen kliente — tik + om by te voeg.',
+    basket:'Mandjie',emptyBasket:'Tik \'n produk of skandeer \'n kode om items by te voeg',
+    creditLog:'Krediet Log',back:'Terug',grandTotal:'Groottotaal',
+    todaySales:'Vandag se Verkope',allClear:'Alles Skoon',deductNote:'Sal van maandeinde salaris afgetrek word',
+    settleConfirm:'Is jy seker? Dit merk alle uitstaande items as betaal.',
+    yesSettle:'Ja, Merk Vereffend',addedToCredit:'Verkoop bygevoeg tot krediet!',
+    productExists:'\'n Produk met hierdie strepieskode bestaan reeds.',
+    enterBarcode:'Voer strepieskode in',enterName:'Voer produknaam in',
+    category:'Kategorie',food:'Kos',drinks:'Drankies',snacks:'Versnaperings',
+    household:'Huishoudelik',other:'Ander',
+    noCameraFallback:'Kamera nie beskikbaar — voer kode in',
+    openDashboard:'Maak Rekenaar Dashboard oop',allMonths:'Alle Tye',
+    settings:'Instellings & Rugsteun',backupData:'Laai Rugsteun af',
+    restoreData:'Herstel van Lêer',deleteTransaction:'Verwyder hierdie transaksie',
+    deleteCustomer:'Verwyder Kliënt',
+    deleteCustomerConfirm:'Verwyder hierdie kliënt en AL hul transaksies?',
+    autoCalc:'Outoberekenaar van kosprys + opslag',
+    newBalance:'Nuwe Saldo na hierdie verkoop',
+    stepOf:'Stap',of:'van',perItem:'elk',removeFromBasket:'Verwyder',
+    stockQty:'Voorraad',receiveStock:'Ontvang Voorraad',lowStock:'Lae Voorraad Waarskuwing',
+    outOfStock:'Uit Voorraad',stockUpdated:'Voorraad opgedateer!',itemsToReceive:'Items om te ontvang',
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// COLORS
+// ─────────────────────────────────────────────────────────────
+const C={
+  navy:'#1B3D6F',navyDark:'#0f2743',navyLight:'#2a5298',
+  gold:'#E8A020',goldLight:'#FFF8E7',
+  bg:'#EEF2F7',white:'#FFFFFF',
+  success:'#059669',successLight:'#D1FAE5',
+  danger:'#DC2626',dangerLight:'#FEE2E2',
+  text:'#1E293B',muted:'#64748B',border:'#E2E8F0',amber:'#F59E0B',
+  purple:'#7C3AED',
+};
+
+// ─────────────────────────────────────────────────────────────
+// SEED DATA
+// ─────────────────────────────────────────────────────────────
+const SEED_PRODUCTS=[
+  {id:'p1',barcode:'6001234567890',name:'White Bread',nameAf:'Witbrood',costPrice:14.99,sellPrice:18.00,markup:20,category:'food',stock_qty:50},
+  {id:'p2',barcode:'6001234567891',name:'Full Cream Milk 2L',nameAf:'Volroom Melk 2L',costPrice:24.99,sellPrice:30.00,markup:20,category:'food',stock_qty:24},
+  {id:'p3',barcode:'6001234567892',name:'White Sugar 1kg',nameAf:'Witsuiker 1kg',costPrice:19.99,sellPrice:25.00,markup:25,category:'food',stock_qty:30},
+  {id:'p4',barcode:'6001234567893',name:'Sunflower Oil 750ml',nameAf:'Sonneblom Olie 750ml',costPrice:29.99,sellPrice:37.00,markup:23,category:'food',stock_qty:18},
+  {id:'p5',barcode:'6001234567894',name:'Coke 2L',nameAf:'Coke 2L',costPrice:21.99,sellPrice:28.00,markup:27,category:'drinks',stock_qty:36},
+  {id:'p6',barcode:'6001234567895',name:'Simba Chips',nameAf:'Simba Chips',costPrice:7.99,sellPrice:10.00,markup:25,category:'snacks',stock_qty:3},
+];
+const SEED_CUSTOMERS=[
+  {id:'c1',name:'Johannes Dlamini',phone:'082 123 4567',balance:245.50},
+  {id:'c2',name:'Maria van der Berg',phone:'074 234 5678',balance:0},
+  {id:'c3',name:'Sipho Nkosi',phone:'083 345 6789',balance:78.00},
+];
+const _n=new Date();
+const SEED_TX=[
+  {id:'t1',customerId:'c1',customerName:'Johannes Dlamini',date:new Date(_n.getFullYear(),_n.getMonth(),5).toISOString(),
+   items:[{productId:'p1',name:'White Bread',qty:2,price:18,total:36},{productId:'p2',name:'Full Cream Milk 2L',qty:1,price:30,total:30},{productId:'p3',name:'White Sugar 1kg',qty:1,price:25,total:25}],total:91,status:'open'},
+  {id:'t2',customerId:'c1',customerName:'Johannes Dlamini',date:new Date(_n.getFullYear(),_n.getMonth(),12).toISOString(),
+   items:[{productId:'p5',name:'Coke 2L',qty:2,price:28,total:56},{productId:'p4',name:'Sunflower Oil 750ml',qty:1,price:37,total:37}],total:93,status:'open'},
+  {id:'t3',customerId:'c3',customerName:'Sipho Nkosi',date:new Date(_n.getFullYear(),_n.getMonth(),_n.getDate()).toISOString(),
+   items:[{productId:'p1',name:'White Bread',qty:1,price:18,total:18},{productId:'p6',name:'Simba Chips',qty:3,price:10,total:30}],total:48,status:'open'},
+];
+
+// ─────────────────────────────────────────────────────────────
+// INDEXEDDB HELPER — secondary storage layer
+// ─────────────────────────────────────────────────────────────
+const IDB={
+  _db:null,
+  open(){
+    if(this._db)return Promise.resolve(this._db);
+    return new Promise((res,rej)=>{
+      const r=indexedDB.open('KoekelDB',1);
+      r.onupgradeneeded=e=>e.target.result.createObjectStore('s',{keyPath:'k'});
+      r.onsuccess=e=>{this._db=e.target.result;res(this._db);};
+      r.onerror=()=>rej(r.error);
+    });
+  },
+  get(key){
+    return this.open().then(db=>new Promise(res=>{
+      const r=db.transaction('s','readonly').objectStore('s').get(key);
+      r.onsuccess=()=>res(r.result?.v);
+      r.onerror=()=>res(null);
+    })).catch(()=>null);
+  },
+  set(key,val){
+    return this.open().then(db=>new Promise(res=>{
+      const tx=db.transaction('s','readwrite');
+      tx.objectStore('s').put({k:key,v:val});
+      tx.oncomplete=res;tx.onerror=res;
+    })).catch(()=>{});
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// SECURITY
+// ─────────────────────────────────────────────────────────────
+function simpleHash(str){
+  let h=5381;
+  for(let i=0;i<str.length;i++)h=((h<<5)+h)+str.charCodeAt(i),h=h&h;
+  return h.toString(36);
+}
+
+// ─────────────────────────────────────────────────────────────
+// DATA — localStorage + IndexedDB + shadow copy
+// ─────────────────────────────────────────────────────────────
+function loadData(){
+  // Primary
+  try{const r=localStorage.getItem('millbank_data');if(r){const d=JSON.parse(r);if(d?.products&&d?.customers)return d;}}catch(e){}
+  // Shadow fallback
+  try{const r=localStorage.getItem('millbank_data_bak');if(r){const d=JSON.parse(r);if(d?.products&&d?.customers){_persist(d);return d;}}}catch(e){}
+  return{products:SEED_PRODUCTS,customers:SEED_CUSTOMERS,transactions:SEED_TX,lang:'en'};
+}
+
+function _persist(d){
+  const j=JSON.stringify(d);
+  try{localStorage.setItem('millbank_data',j);}catch(e){}
+  try{localStorage.setItem('millbank_data_bak',j);}catch(e){}
+  IDB.set('millbank_data',d);
+}
+
+function saveData(d){
+  _persist(d);
+  try{new BroadcastChannel('millbank_sync').postMessage({type:'update',data:d});}catch(e){}
+  if(getSBConfig().shopId){
+    saveToCloud(d)
+      .then(()=>window.dispatchEvent(new CustomEvent('millbank_cloud_ok')))
+      .catch(()=>window.dispatchEvent(new CustomEvent('millbank_cloud_fail')));
+  }
+}
+
+function markBackup(){localStorage.setItem('millbank_last_backup',Date.now().toString());}
+function getShopInfo(){
+  return{
+    name:localStorage.getItem('millbank_shop_name')||'Millbank Shop',
+    address:localStorage.getItem('millbank_shop_address')||'',
+    email:localStorage.getItem('millbank_shop_email')||''
+  };
+}
+
+// ─────────────────────────────────────────────────────────────
+// CLOUD SYNC — Supabase
+// ─────────────────────────────────────────────────────────────
+function getSBConfig(){
+  return{
+    url:localStorage.getItem('millbank_sb_url')||'',
+    key:localStorage.getItem('millbank_sb_key')||'',
+    shopId:localStorage.getItem('millbank_shop_id')||''
+  };
+}
+function getSBClient(){
+  const{url,key}=getSBConfig();
+  if(!url||!key||!window.supabase)return null;
+  try{return window.supabase.createClient(url,key);}catch(e){return null;}
+}
+async function saveToCloud(d){
+  const sb=getSBClient();const{shopId}=getSBConfig();
+  if(!sb||!shopId)return;
+  const{error}=await sb.from('shop_data').upsert(
+    {shop_id:shopId,data:d,updated_at:new Date().toISOString()},
+    {onConflict:'shop_id'}
+  );
+  if(error)throw error;
+}
+async function loadFromCloud(){
+  const sb=getSBClient();const{shopId}=getSBConfig();
+  if(!sb||!shopId)return null;
+  try{
+    const{data,error}=await sb.from('shop_data').select('data').eq('shop_id',shopId).single();
+    if(error||!data)return null;
+    return data.data;
+  }catch(e){return null;}
+}
+function subscribeToCloud(cb){
+  const sb=getSBClient();const{shopId}=getSBConfig();
+  if(!sb||!shopId)return null;
+  try{
+    return sb.channel('millbank-'+shopId)
+      .on('postgres_changes',{event:'UPDATE',schema:'public',table:'shop_data',filter:'shop_id=eq.'+shopId},
+        payload=>{if(payload.new?.data)cb(payload.new.data);})
+      .subscribe();
+  }catch(e){return null;}
+}
+
+function uid(){
+  try{return crypto.randomUUID();}catch(e){}
+  return'x'+Math.random().toString(36).slice(2)+Date.now().toString(36);
+}
+function fmt(n){return'R '+parseFloat(n||0).toFixed(2);}
+function fmtDate(iso){return new Date(iso).toLocaleDateString('en-ZA',{day:'2-digit',month:'short',year:'numeric'});}
+const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+// ─────────────────────────────────────────────────────────────
+// UI PRIMITIVES
+// ─────────────────────────────────────────────────────────────
+function Btn({children,onClick,variant='primary',small=false,style:s={},disabled=false}){
+  const variants={
+    primary:{bg:C.navy,color:'#fff',border:'none'},
+    gold:{bg:C.gold,color:C.navyDark,border:'none'},
+    danger:{bg:C.danger,color:'#fff',border:'none'},
+    dangerOutline:{bg:'transparent',color:C.danger,border:`2px solid ${C.danger}`},
+    outline:{bg:'transparent',color:C.navy,border:`2px solid ${C.navy}`},
+    ghost:{bg:C.bg,color:C.text,border:`1.5px solid ${C.border}`},
+    success:{bg:C.success,color:'#fff',border:'none'},
+    purple:{bg:C.purple,color:'#fff',border:'none'},
+  };
+  const v=variants[variant]||variants.primary;
+  return(
+    <button onClick={onClick} disabled={disabled}
+      style={{background:v.bg,color:v.color,border:v.border,borderRadius:12,
+        padding:small?'8px 14px':'13px 20px',fontSize:small?13:15,fontWeight:700,
+        cursor:disabled?'not-allowed':'pointer',opacity:disabled?.5:1,
+        display:'flex',alignItems:'center',justifyContent:'center',gap:6,lineHeight:1,...s}}>
+      {children}
+    </button>
+  );
+}
+function Badge({label,color=C.navy,textColor='#fff'}){
+  return<span style={{background:color,color:textColor,borderRadius:20,padding:'3px 10px',fontSize:11,fontWeight:700,whiteSpace:'nowrap'}}>{label}</span>;
+}
+function Card({children,style:s={},onClick}){
+  return<div onClick={onClick} style={{background:C.white,borderRadius:14,padding:'14px 16px',boxShadow:'0 1px 4px rgba(0,0,0,0.07)',marginBottom:10,cursor:onClick?'pointer':'default',...s}}>{children}</div>;
+}
+function Input({label,value,onChange,placeholder,type='text',note}){
+  return(
+    <div style={{marginBottom:12}}>
+      {label&&<div style={{fontSize:12,fontWeight:700,color:C.muted,marginBottom:4,textTransform:'uppercase',letterSpacing:.5}}>{label}</div>}
+      <input value={value} onChange={onChange} placeholder={placeholder} type={type}
+        style={{width:'100%',background:C.bg,border:`1.5px solid ${C.border}`,borderRadius:10,padding:'12px 14px',fontSize:15,color:C.text,outline:'none'}}/>
+      {note&&<div style={{fontSize:11,color:C.muted,marginTop:3}}>{note}</div>}
+    </div>
+  );
+}
+function Sel({label,value,onChange,options}){
+  return(
+    <div style={{marginBottom:12}}>
+      {label&&<div style={{fontSize:12,fontWeight:700,color:C.muted,marginBottom:4,textTransform:'uppercase',letterSpacing:.5}}>{label}</div>}
+      <select value={value} onChange={onChange}
+        style={{width:'100%',background:C.bg,border:`1.5px solid ${C.border}`,borderRadius:10,padding:'12px 14px',fontSize:15,color:C.text,outline:'none'}}>
+        {options.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}
+      </select>
+    </div>
+  );
+}
+function Modal({children,onClose,title,danger=false}){
+  return(
+    <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.55)',zIndex:100,display:'flex',flexDirection:'column',justifyContent:'flex-end'}}>
+      <div style={{background:C.white,borderRadius:'22px 22px 0 0',maxHeight:'92%',display:'flex',flexDirection:'column'}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 20px',borderBottom:`1px solid ${C.border}`,flexShrink:0}}>
+          <div style={{fontSize:17,fontWeight:800,color:danger?C.danger:C.text}}>{title}</div>
+          <button onClick={onClose} style={{background:C.bg,border:'none',cursor:'pointer',width:32,height:32,borderRadius:16,fontSize:16,color:C.muted,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
+        </div>
+        <div style={{overflow:'auto',padding:'0 20px 40px'}}>{children}</div>
+      </div>
+    </div>
+  );
+}
+function ConfirmDialog({title,message,onConfirm,onCancel,confirmLabel='Confirm',danger=true}){
+  return(
+    <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.6)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
+      <div style={{background:C.white,borderRadius:18,padding:24,width:'100%',boxShadow:'0 20px 50px rgba(0,0,0,0.25)'}}>
+        <div style={{fontWeight:800,fontSize:17,color:C.text,marginBottom:8}}>{title}</div>
+        <div style={{color:C.muted,fontSize:14,marginBottom:20,lineHeight:1.5}}>{message}</div>
+        <div style={{display:'flex',gap:10}}>
+          <Btn onClick={onCancel} variant='ghost' style={{flex:1}}>Cancel</Btn>
+          <Btn onClick={onConfirm} variant={danger?'danger':'success'} style={{flex:1}}>{confirmLabel}</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+function Toast({msg,onDone}){
+  React.useEffect(()=>{const t=setTimeout(onDone,2200);return()=>clearTimeout(t);},[]);
+  return(
+    <div style={{position:'absolute',bottom:95,left:16,right:16,zIndex:200,
+      background:C.navyDark,color:'#fff',borderRadius:14,padding:'14px 18px',
+      fontSize:14,fontWeight:700,textAlign:'center',boxShadow:'0 4px 20px rgba(0,0,0,0.3)',
+      animation:'fadeIn .2s ease'}}>
+      ✓ {msg}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// BARCODE SCANNER
+// ─────────────────────────────────────────────────────────────
+function BarcodeScanner({onScan,onClose,t}){
+  const videoRef=React.useRef(null);
+  const [err,setErr]=React.useState(null);
+  const [manual,setManual]=React.useState('');
+  const [ready,setReady]=React.useState(false);
+  const streamRef=React.useRef(null);
+  const timerRef=React.useRef(null);
+
+  React.useEffect(()=>{
+    let mounted=true;
+    async function start(){
+      try{
+        const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}});
+        if(!mounted){stream.getTracks().forEach(tr=>tr.stop());return;}
+        streamRef.current=stream;
+        if(videoRef.current){videoRef.current.srcObject=stream;await videoRef.current.play();}
+        setReady(true);
+        if('BarcodeDetector' in window){
+          const det=new BarcodeDetector({formats:['ean_13','ean_8','code_128','upc_a','upc_e','qr_code']});
+          timerRef.current=setInterval(async()=>{
+            try{const codes=await det.detect(videoRef.current);if(codes.length>0){stop();onScan(codes[0].rawValue);}}catch(e){}
+          },400);
+        }
+      }catch(e){if(mounted)setErr(true);}
+    }
+    start();
+    return()=>{mounted=false;stop();};
+  },[]);
+
+  function stop(){
+    if(timerRef.current)clearInterval(timerRef.current);
+    if(streamRef.current)streamRef.current.getTracks().forEach(tr=>tr.stop());
+  }
+
+  return(
+    <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.95)',zIndex:150,display:'flex',flexDirection:'column'}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:`${16+SAFE_TOP}px 20px 20px`}}>
+        <div style={{color:'#fff',fontSize:18,fontWeight:800}}>{t.scanBarcode}</div>
+        <Btn onClick={()=>{stop();onClose();}} variant='ghost' small>{t.cancel}</Btn>
+      </div>
+      {!err?(
+        <div style={{flex:1,position:'relative',padding:'0 20px',display:'flex',alignItems:'center',justifyContent:'center'}}>
+          <video ref={videoRef} muted playsInline style={{width:'100%',maxHeight:280,borderRadius:16,objectFit:'cover',background:'#000'}}/>
+          {ready&&(
+            <div style={{position:'absolute',inset:'20px',border:'2.5px solid rgba(255,255,255,0.4)',borderRadius:16,pointerEvents:'none'}}>
+              <div style={{position:'absolute',top:'50%',left:'10%',right:'10%',height:2.5,background:C.gold,transform:'translateY(-50%)',borderRadius:2}}/>
+              <div style={{position:'absolute',top:8,left:8,width:20,height:20,borderTop:`3px solid ${C.gold}`,borderLeft:`3px solid ${C.gold}`,borderRadius:'4px 0 0 0'}}/>
+              <div style={{position:'absolute',top:8,right:8,width:20,height:20,borderTop:`3px solid ${C.gold}`,borderRight:`3px solid ${C.gold}`,borderRadius:'0 4px 0 0'}}/>
+              <div style={{position:'absolute',bottom:8,left:8,width:20,height:20,borderBottom:`3px solid ${C.gold}`,borderLeft:`3px solid ${C.gold}`,borderRadius:'0 0 0 4px'}}/>
+              <div style={{position:'absolute',bottom:8,right:8,width:20,height:20,borderBottom:`3px solid ${C.gold}`,borderRight:`3px solid ${C.gold}`,borderRadius:'0 0 4px 0'}}/>
+            </div>
+          )}
+        </div>
+      ):(
+        <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',padding:'0 30px',textAlign:'center'}}>
+          <div>
+            <div style={{fontSize:40,marginBottom:12}}>📷</div>
+            <div style={{color:'rgba(255,255,255,0.5)',fontSize:13}}>{t.noCameraFallback}</div>
+          </div>
+        </div>
+      )}
+      <div style={{padding:'20px 20px 50px'}}>
+        <div style={{color:'rgba(255,255,255,0.4)',fontSize:12,textAlign:'center',marginBottom:8}}>— or enter manually —</div>
+        <div style={{display:'flex',gap:10}}>
+          <input value={manual} onChange={e=>setManual(e.target.value)}
+            onKeyDown={e=>{if(e.key==='Enter'&&manual.trim()){stop();onScan(manual.trim());}}}
+            placeholder={t.enterBarcode} autoFocus={!!err}
+            style={{flex:1,background:'rgba(255,255,255,0.1)',border:'1.5px solid rgba(255,255,255,0.2)',borderRadius:12,padding:'13px 14px',color:'#fff',fontSize:15,outline:'none'}}/>
+          <Btn onClick={()=>{if(manual.trim()){stop();onScan(manual.trim());}}} variant='gold'>{t.confirm}</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// SYNC STATUS BANNER
+// Smart banner: red warning when Supabase is configured but
+// offline (saveToCloud just failed), classic reminder when no
+// Supabase is set up, silent when cloud is syncing normally.
+// ─────────────────────────────────────────────────────────────
+function SyncStatusBanner({cloudStatus,onBackup,lastBackup}){
+  const[dismissed,setDismissed]=React.useState(false);
+  if(dismissed)return null;
+  const sbConfigured=!!getSBConfig().shopId;
+
+  if(sbConfigured&&cloudStatus==='fail'){
+    return(
+      <div style={{background:'#7f1d1d',margin:'12px 16px 0',borderRadius:12,padding:'10px 14px',display:'flex',alignItems:'center',gap:10,animation:'fadeIn .3s ease'}}>
+        <span style={{fontSize:18}}>📵</span>
+        <div style={{flex:1,color:'#fff'}}>
+          <div style={{fontWeight:800,fontSize:13}}>Cloud Sync Offline</div>
+          <div style={{fontSize:11,opacity:.8}}>Weak signal — download a local backup now</div>
+        </div>
+        <Btn onClick={onBackup} variant='gold' small style={{flexShrink:0}}>Backup</Btn>
+        <button onClick={()=>setDismissed(true)} style={{background:'none',border:'none',color:'rgba(255,255,255,0.7)',cursor:'pointer',fontSize:20,lineHeight:1,paddingLeft:2}}>✕</button>
+      </div>
+    );
+  }
+  if(!sbConfigured){
+    const needed=!lastBackup||(Date.now()-parseInt(lastBackup)>24*60*60*1000);
+    if(!needed)return null;
+    const lastStr=lastBackup?new Date(parseInt(lastBackup)).toLocaleDateString('en-ZA'):'Never';
+    return(
+      <div style={{background:C.purple,margin:'12px 16px 0',borderRadius:12,padding:'10px 14px',display:'flex',alignItems:'center',gap:10,animation:'fadeIn .3s ease'}}>
+        <span style={{fontSize:18}}>⚠️</span>
+        <div style={{flex:1,color:'#fff'}}>
+          <div style={{fontWeight:800,fontSize:13}}>Backup Recommended</div>
+          <div style={{fontSize:11,opacity:.8}}>Last backup: {lastStr}</div>
+        </div>
+        <Btn onClick={onBackup} variant='gold' small style={{flexShrink:0}}>Backup Now</Btn>
+        <button onClick={()=>setDismissed(true)} style={{background:'none',border:'none',color:'rgba(255,255,255,0.7)',cursor:'pointer',fontSize:20,lineHeight:1,paddingLeft:2}}>✕</button>
+      </div>
+    );
+  }
+  return null; // Supabase configured + working → no banner
+}
+
+// ─────────────────────────────────────────────────────────────
+// PIN SCREEN
+// ─────────────────────────────────────────────────────────────
+function PINScreen({onUnlock,hasPin}){
+  const [digits,setDigits]=React.useState([]);
+  const [phase,setPhase]=React.useState(hasPin?'enter':'setup');
+  const [pending,setPending]=React.useState(null);
+  const [shake,setShake]=React.useState(false);
+  const [msg,setMsg]=React.useState(hasPin?'Enter your PIN':'Create a 4-digit PIN');
+  const [attempts,setAttempts]=React.useState(0);
+
+  const now=new Date();
+  const timeStr=now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0');
+
+  function press(d){
+    if(digits.length>=4||shake)return;
+    const nd=[...digits,d];
+    setDigits(nd);
+    if(nd.length===4)setTimeout(()=>submit(nd),140);
+  }
+
+  function del(){setDigits(d=>d.slice(0,-1));}
+
+  function doShake(errMsg){
+    setShake(true);setDigits([]);setMsg(errMsg);
+    setTimeout(()=>setShake(false),500);
+  }
+
+  function submit(nd){
+    const str=nd.join('');
+    if(phase==='setup'){
+      setPending(str);setPhase('confirm');setDigits([]);setMsg('Confirm your PIN');
+    } else if(phase==='confirm'){
+      if(str===pending){
+        localStorage.setItem('millbank_pin',simpleHash(str));
+        onUnlock();
+      } else {
+        doShake('PINs don\'t match — try again');
+        setPhase('setup');setPending(null);
+      }
+    } else {
+      const stored=localStorage.getItem('millbank_pin');
+      if(simpleHash(str)===stored){
+        onUnlock();
+      } else {
+        const a=attempts+1;setAttempts(a);
+        doShake(a>=5?'Too many attempts — see below':'Wrong PIN');
+      }
+    }
+  }
+
+  function resetPIN(){
+    if(window.confirm('This clears your PIN. The app will ask you to set a new one.\nContinue?')){
+      localStorage.removeItem('millbank_pin');
+      setPhase('setup');setAttempts(0);setDigits([]);setPending(null);setMsg('Create a new 4-digit PIN');
+    }
+  }
+
+  return(
+    <div style={{height:'100%',display:'flex',flexDirection:'column',alignItems:'center',background:C.navyDark,padding:'0 32px'}}>
+      {/* Status bar area */}
+      <div style={{width:'100%',color:'rgba(255,255,255,0.6)',fontSize:16,fontWeight:600,padding:`${IS_STANDALONE?20:10}px 0 0`,textAlign:'center'}}>{timeStr}</div>
+
+      <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',width:'100%',maxWidth:320}}>
+        <div style={{fontSize:44,marginBottom:6}}>🛒</div>
+        <div style={{color:'rgba(255,255,255,0.45)',fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:2,marginBottom:2}}>Millbank Shop</div>
+        <div style={{color:C.gold,fontSize:20,fontWeight:900,marginBottom:32}}>
+          {phase==='enter'?'Welcome back':''}
+        </div>
+
+        <div style={{fontSize:14,color:'rgba(255,255,255,0.65)',fontWeight:600,marginBottom:24,textAlign:'center'}}>{msg}</div>
+
+        {/* PIN dots */}
+        <div style={{display:'flex',gap:16,marginBottom:44,animation:shake?'shake 0.45s ease':'none'}}>
+          {[0,1,2,3].map(i=>(
+            <div key={i} style={{width:16,height:16,borderRadius:8,
+              background:digits.length>i?C.gold:'rgba(255,255,255,0.2)',
+              transition:'background 0.12s ease',
+              boxShadow:digits.length>i?`0 0 8px ${C.gold}55`:'none'}}/>
+          ))}
+        </div>
+
+        {/* Keypad */}
+        <div style={{display:'grid',gridTemplateColumns:'repeat(3,72px)',gap:12,marginBottom:28}}>
+          {[1,2,3,4,5,6,7,8,9,'',0,'⌫'].map((k,i)=>{
+            if(k==='')return<div key={i}/>;
+            return(
+              <div key={i}
+                className="pin-btn"
+                onClick={k==='⌫'?del:()=>press(k)}
+                style={{
+                  width:72,height:72,borderRadius:36,
+                  background:k==='⌫'?'rgba(255,255,255,0.08)':'rgba(255,255,255,0.14)',
+                  display:'flex',alignItems:'center',justifyContent:'center',
+                  fontSize:k==='⌫'?22:28,fontWeight:700,color:'#fff',
+                  cursor:'pointer',userSelect:'none',
+                  transition:'background .1s',
+                }}
+              >{k}</div>
+            );
+          })}
+        </div>
+
+        {/* Reset / Skip */}
+        {hasPin&&attempts>=3&&(
+          <button onClick={resetPIN}
+            style={{background:'none',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,
+              padding:'10px 24px',color:'rgba(255,255,255,0.55)',fontSize:13,cursor:'pointer',fontWeight:600}}>
+            Forgot PIN? Reset
+          </button>
+        )}
+        {!hasPin&&(
+          <button onClick={onUnlock}
+            style={{background:'none',border:'none',color:'rgba(255,255,255,0.3)',fontSize:12,cursor:'pointer',fontWeight:600,marginTop:4}}>
+            Skip PIN setup
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// HEADER
+// ─────────────────────────────────────────────────────────────
+const IS_STANDALONE=window.matchMedia('(display-mode:standalone)').matches||window.navigator.standalone===true;
+// Desktop preview = inside IOSDevice frame on a big screen (needs clearance for drawn status bar)
+const IS_DESKTOP_PREVIEW=!IS_STANDALONE&&window.innerWidth>430;
+// Manage safe-area padding ourselves when: installed PWA, or desktop preview (IOSDevice draws its own bar)
+const SAFE_TOP=(IS_STANDALONE||IS_DESKTOP_PREVIEW)?44:0;
+const SAFE_BOTTOM=(IS_STANDALONE||IS_DESKTOP_PREVIEW)?20:0;
+
+function AppHeader({title,lang,setLang,onBack,rightSlot}){
+  return(
+    <div style={{background:C.navy,padding:`${14+SAFE_TOP}px 16px 14px`,display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,flexShrink:0}}>
+      {onBack?(
+        <button onClick={onBack} style={{background:'rgba(255,255,255,0.15)',border:'none',cursor:'pointer',color:'#fff',borderRadius:10,padding:'8px 14px',fontSize:13,fontWeight:700,whiteSpace:'nowrap'}}>‹ {onBack===true?'Back':onBack}</button>
+      ):(
+        <div>
+          <div style={{color:'rgba(255,255,255,0.55)',fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:1}}>Millbank Shop</div>
+          <div style={{color:'#fff',fontSize:19,fontWeight:900,lineHeight:1.1}}>{title}</div>
+        </div>
+      )}
+      {onBack&&<div style={{color:'#fff',fontSize:17,fontWeight:800,flex:1,paddingLeft:4,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{title}</div>}
+      <div style={{display:'flex',gap:8,alignItems:'center',flexShrink:0}}>
+        {rightSlot}
+        <button onClick={()=>setLang(l=>l==='en'?'af':'en')}
+          style={{background:'rgba(255,255,255,0.15)',border:'none',cursor:'pointer',color:'#fff',borderRadius:10,padding:'7px 11px',fontSize:12,fontWeight:800}}>
+          {lang==='en'?'AF':'EN'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// TAB BAR
+// ─────────────────────────────────────────────────────────────
+function TabBar({tab,setTab,t}){
+  const tabs=[
+    {id:'home',icon:'⌂',label:t.home},
+    {id:'inventory',icon:'▦',label:t.inventory},
+    {id:'sale',center:true,label:t.sale},
+    {id:'customers',icon:'◉',label:t.customers},
+    {id:'reports',icon:'≡',label:t.reports},
+  ];
+  return(
+    <div style={{background:C.white,borderTop:`1px solid ${C.border}`,display:'flex',paddingBottom:IS_DESKTOP_PREVIEW?6+SAFE_BOTTOM:'calc(6px + env(safe-area-inset-bottom))',paddingTop:4,flexShrink:0}}>
+      {tabs.map(tb=>(
+        <button key={tb.id} onClick={()=>setTab(tb.id)}
+          style={{flex:1,background:'none',border:'none',cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:2,padding:'4px 2px'}}>
+          {tb.center?(
+            <>
+              <div style={{width:48,height:48,borderRadius:24,background:tab===tb.id?C.navyDark:C.navy,display:'flex',alignItems:'center',justifyContent:'center',marginTop:-22,boxShadow:'0 4px 14px rgba(27,61,111,0.5)',border:'3px solid #fff'}}>
+                <span style={{fontSize:24,color:'#fff',fontWeight:900,lineHeight:1}}>+</span>
+              </div>
+              <span style={{fontSize:10,fontWeight:800,color:tab===tb.id?C.navy:C.muted,marginTop:2}}>{tb.label}</span>
+            </>
+          ):(
+            <>
+              <span style={{fontSize:20,lineHeight:1,filter:tab===tb.id?'none':'opacity(.5)'}}>{tb.icon}</span>
+              <span style={{fontSize:10,fontWeight:800,color:tab===tb.id?C.navy:C.muted}}>{tb.label}</span>
+              {tab===tb.id&&<div style={{width:4,height:4,borderRadius:2,background:C.navy}}/>}
+            </>
+          )}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// HOME
+// ─────────────────────────────────────────────────────────────
+function HomeScreen({data,setData,setTab,t,lang,onOpenSettings,onBackup,lastBackup,cloudStatus}){
+  const todayStr=new Date().toISOString().slice(0,10);
+  const todayTxs=data.transactions.filter(tx=>tx.date.slice(0,10)===todayStr);
+  const todayTotal=todayTxs.reduce((s,tx)=>s+tx.total,0);
+  const totalOwed=data.customers.reduce((s,c)=>s+c.balance,0);
+  const openTxs=data.transactions.filter(tx=>tx.status==='open').sort((a,b)=>new Date(b.date)-new Date(a.date));
+
+  return(
+    <div style={{height:'100%',overflow:'auto',background:C.bg}}>
+      <SyncStatusBanner cloudStatus={cloudStatus} onBackup={onBackup} lastBackup={lastBackup}/>
+      <div style={{background:`linear-gradient(160deg,${C.navyDark} 0%,${C.navy} 100%)`,padding:'14px 16px 20px',marginTop:12}}>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+          <div style={{background:'rgba(255,255,255,0.12)',borderRadius:14,padding:'14px'}}>
+            <div style={{color:'rgba(255,255,255,0.6)',fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:.5}}>{t.totalCredit}</div>
+            <div style={{color:'#fff',fontSize:26,fontWeight:900,marginTop:4}}>{fmt(totalOwed)}</div>
+            <div style={{color:C.gold,fontSize:12,fontWeight:600,marginTop:2}}>{openTxs.length} {t.outstanding}</div>
+          </div>
+          <div style={{background:'rgba(255,255,255,0.12)',borderRadius:14,padding:'14px'}}>
+            <div style={{color:'rgba(255,255,255,0.6)',fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:.5}}>{t.todaySales}</div>
+            <div style={{color:'#fff',fontSize:26,fontWeight:900,marginTop:4}}>{fmt(todayTotal)}</div>
+            <div style={{color:C.gold,fontSize:12,fontWeight:600,marginTop:2}}>{todayTxs.length} sales</div>
+          </div>
+        </div>
+      </div>
+      <div style={{padding:'12px 16px 0'}}>
+        {(()=>{const lp=data.products.filter(p=>typeof p.stock_qty==='number'&&p.stock_qty<=3);return lp.length>0&&(
+          <div style={{background:C.dangerLight,border:`1px solid ${C.danger}`,borderRadius:12,padding:'10px 14px',marginBottom:10,display:'flex',alignItems:'flex-start',gap:10}}>
+            <span style={{fontSize:18,flexShrink:0}}>⚠️</span>
+            <div>
+              <div style={{fontWeight:800,fontSize:13,color:C.danger}}>{t.lowStock}</div>
+              <div style={{fontSize:11,color:C.muted,marginTop:2,lineHeight:1.5}}>
+                {lp.map(p=>p.stock_qty===0?`${lang==='af'&&p.nameAf?p.nameAf:p.name} (${t.outOfStock})`:`${lang==='af'&&p.nameAf?p.nameAf:p.name} (${p.stock_qty} left)`).join(' · ')}
+              </div>
+            </div>
+          </div>
+        );})()}
+        <Btn onClick={()=>setTab('sale')} variant='gold' style={{width:'100%',borderRadius:14,padding:'16px',fontSize:16,gap:10,marginBottom:12}}>
+          <span style={{fontSize:24}}>🛒</span> {t.newSale}
+        </Btn>
+        <div style={{fontSize:12,fontWeight:800,color:C.muted,textTransform:'uppercase',letterSpacing:.5,marginBottom:8}}>
+          {lang==='af'?'Onlangse Aktiwiteit':'Recent Activity'}
+        </div>
+        {openTxs.length===0&&(
+          <Card><div style={{textAlign:'center',color:C.success,fontSize:14,fontWeight:700,padding:'8px 0'}}>✓ {t.allClear}</div></Card>
+        )}
+        {openTxs.slice(0,6).map(tx=>(
+          <Card key={tx.id} onClick={()=>setTab('customers')}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div>
+                <div style={{fontWeight:800,fontSize:14}}>{tx.customerName}</div>
+                <div style={{color:C.muted,fontSize:12,marginTop:1}}>{fmtDate(tx.date)} · {tx.items.length} {t.items}</div>
+              </div>
+              <div style={{textAlign:'right'}}>
+                <div style={{fontWeight:900,fontSize:16,color:C.navy}}>{fmt(tx.total)}</div>
+                <Badge label={t.outstanding} color={C.amber}/>
+              </div>
+            </div>
+          </Card>
+        ))}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginTop:4}}>
+          <button onClick={onOpenSettings}
+            style={{background:C.white,border:`1.5px solid ${C.border}`,borderRadius:12,padding:'12px',cursor:'pointer',color:C.text,fontSize:12,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+            ⚙️ {t.settings}
+          </button>
+          <a href="Millbank Dashboard.html" target="_blank" rel="noopener noreferrer"
+            style={{background:C.navy,borderRadius:12,padding:'12px',color:'#fff',fontSize:12,fontWeight:700,textDecoration:'none',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+            🖥️ {lang==='af'?'Rekenaar':'Dashboard'}
+          </a>
+        </div>
+      </div>
+      <div style={{height:24}}/>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// STOCK RECEIVE MODAL
+// ─────────────────────────────────────────────────────────────
+function StockReceiveModal({data,setData,t,lang,onClose,onDone}){
+  const [received,setReceived]=React.useState([]);
+  const [scanning,setScanning]=React.useState(false);
+  const [search,setSearch]=React.useState('');
+  const [selectedProd,setSelectedProd]=React.useState(null);
+  const [qty,setQty]=React.useState('1');
+  const [notFound,setNotFound]=React.useState('');
+  const qtyRef=React.useRef(null);
+
+  function handleScan(code){
+    setScanning(false);setNotFound('');
+    const p=data.products.find(x=>x.barcode===code);
+    if(p){setSelectedProd(p);setQty('1');setTimeout(()=>qtyRef.current&&qtyRef.current.focus(),100);}
+    else setNotFound(code);
+  }
+
+  function addItem(){
+    if(!selectedProd)return;
+    const q=parseInt(qty);
+    if(isNaN(q)||q<=0)return;
+    setReceived(r=>{
+      const ex=r.find(i=>i.product.id===selectedProd.id);
+      if(ex)return r.map(i=>i.product.id===selectedProd.id?{...i,qty:i.qty+q}:i);
+      return[...r,{product:{...selectedProd},qty:q}];
+    });
+    setSelectedProd(null);setQty('1');setSearch('');setNotFound('');
+  }
+
+  function removeItem(id){setReceived(r=>r.filter(i=>i.product.id!==id));}
+
+  function confirm(){
+    if(received.length===0)return;
+    const updatedProducts=data.products.map(p=>{
+      const item=received.find(i=>i.product.id===p.id);
+      if(!item)return p;
+      return{...p,stock_qty:(typeof p.stock_qty==='number'?p.stock_qty:0)+item.qty};
+    });
+    const nd={...data,products:updatedProducts};
+    setData(nd);saveData(nd);
+    onDone(t.stockUpdated);
+  }
+
+  const filteredProds=search?data.products.filter(p=>
+    p.name.toLowerCase().includes(search.toLowerCase())||
+    (p.nameAf||'').toLowerCase().includes(search.toLowerCase())||
+    p.barcode.includes(search)
+  ):[];
+
+  return(
+    <>
+      {scanning&&<BarcodeScanner t={t} onScan={handleScan} onClose={()=>setScanning(false)}/>}
+      <Modal title={`📥 ${t.receiveStock}`} onClose={onClose}>
+        <div style={{paddingTop:12}}>
+          <div style={{background:'#EFF6FF',borderRadius:10,padding:'10px 12px',marginBottom:12,fontSize:12,color:'#1E40AF',lineHeight:1.5}}>
+            💡 {lang==='af'?'Skandeer strepieskode op afleweringsnota, of soek produk handmatig':'Scan the barcode on a delivery note, or search manually to receive stock'}
+          </div>
+
+          <div style={{display:'flex',gap:8,marginBottom:8}}>
+            <input value={search} onChange={e=>{setSearch(e.target.value);setSelectedProd(null);}}
+              placeholder={lang==='af'?'Soek produk...':'Search product...'}
+              style={{flex:1,background:C.bg,border:`1.5px solid ${C.border}`,borderRadius:10,padding:'10px 12px',fontSize:14,outline:'none'}}/>
+            <Btn onClick={()=>{setScanning(true);setSearch('');}} variant='gold' small>📷 Scan</Btn>
+          </div>
+
+          {filteredProds.length>0&&!selectedProd&&(
+            <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:10,marginBottom:10,maxHeight:160,overflow:'auto'}}>
+              {filteredProds.slice(0,6).map(p=>(
+                <div key={p.id} onClick={()=>{setSelectedProd(p);setSearch('');setQty('1');setTimeout(()=>qtyRef.current&&qtyRef.current.focus(),80);}}
+                  style={{padding:'10px 12px',borderBottom:`1px solid ${C.border}`,cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                  <div>
+                    <div style={{fontWeight:700,fontSize:13}}>{lang==='af'&&p.nameAf?p.nameAf:p.name}</div>
+                    <div style={{fontSize:11,color:C.muted}}>📦 {lang==='af'?'Huidig':'Current'}: {typeof p.stock_qty==='number'?p.stock_qty:'—'}</div>
+                  </div>
+                  <Badge label={fmt(p.sellPrice)} color={C.navyLight}/>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {notFound&&(
+            <div style={{background:C.dangerLight,border:`1px solid ${C.danger}`,borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:12,color:C.danger,fontWeight:600}}>
+              ⚠️ {lang==='af'?`Kode "${notFound}" nie gevind nie`:`Barcode "${notFound}" not found`}
+            </div>
+          )}
+
+          {selectedProd&&(
+            <div style={{background:C.successLight,border:`1px solid ${C.success}`,borderRadius:10,padding:'12px',marginBottom:10}}>
+              <div style={{fontWeight:800,fontSize:14,color:C.success,marginBottom:8}}>✓ {selectedProd.name}</div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr auto',gap:8,alignItems:'flex-end'}}>
+                <div>
+                  <div style={{fontSize:12,color:C.muted,marginBottom:4}}>{lang==='af'?'Hoeveelheid ontvang:':'Quantity received:'}</div>
+                  <input ref={qtyRef} value={qty} onChange={e=>setQty(e.target.value)} type="number" min="1"
+                    onKeyDown={e=>e.key==='Enter'&&addItem()}
+                    style={{width:'100%',background:C.white,border:`2px solid ${C.success}`,borderRadius:8,padding:'10px 12px',fontSize:18,fontWeight:800,outline:'none',textAlign:'center'}}/>
+                </div>
+                <Btn onClick={addItem} variant='success'>+ {lang==='af'?'Voeg by':'Add'}</Btn>
+              </div>
+            </div>
+          )}
+
+          {received.length>0&&(
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:12,fontWeight:700,color:C.muted,textTransform:'uppercase',marginBottom:6}}>{t.itemsToReceive}:</div>
+              {received.map(i=>(
+                <div key={i.product.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',background:C.bg,borderRadius:8,padding:'8px 12px',marginBottom:6}}>
+                  <div>
+                    <div style={{fontWeight:700,fontSize:13}}>{i.product.name}</div>
+                    <div style={{fontSize:11,color:C.muted}}>
+                      {typeof i.product.stock_qty==='number'?i.product.stock_qty:0} → {(typeof i.product.stock_qty==='number'?i.product.stock_qty:0)+i.qty}
+                    </div>
+                  </div>
+                  <div style={{display:'flex',alignItems:'center',gap:8}}>
+                    <span style={{fontWeight:900,fontSize:16,color:C.success}}>+{i.qty}</span>
+                    <button onClick={()=>removeItem(i.product.id)} style={{background:C.dangerLight,border:`1px solid ${C.danger}`,color:C.danger,borderRadius:6,padding:'4px 8px',fontSize:11,cursor:'pointer',fontWeight:700}}>✕</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <Btn onClick={confirm} variant='success' style={{width:'100%',marginBottom:10}} disabled={received.length===0}>
+            ✓ {lang==='af'?'Dateer Voorraad Op':'Update Stock'} ({received.length} {lang==='af'?'produkte':'products'})
+          </Btn>
+          <div style={{height:10}}/>
+        </div>
+      </Modal>
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// INVENTORY
+// ─────────────────────────────────────────────────────────────
+function InventoryScreen({data,setData,t,lang}){
+  const [search,setSearch]=React.useState('');
+  const [modal,setModal]=React.useState(null);
+  const [scanning,setScanning]=React.useState(false);
+  const [form,setForm]=React.useState({barcode:'',name:'',nameAf:'',costPrice:'',sellPrice:'',markup:'20',category:'food',stock_qty:''});
+  const [err,setErr]=React.useState('');
+  const [deleteConfirm,setDeleteConfirm]=React.useState(null);
+  const [receiveModal,setReceiveModal]=React.useState(false);
+  const [toast,setToast]=React.useState('');
+  const catColors={food:C.success,drinks:C.navyLight,snacks:C.amber,household:C.purple,other:C.muted};
+
+  const products=data.products.filter(p=>
+    p.name.toLowerCase().includes(search.toLowerCase())||
+    (p.nameAf||'').toLowerCase().includes(search.toLowerCase())||
+    p.barcode.includes(search)
+  );
+
+  function openAdd(barcode=''){setForm({barcode,name:'',nameAf:'',costPrice:'',sellPrice:'',markup:'20',category:'food',stock_qty:''});setErr('');setModal('add');}
+  function openEdit(p){setForm({barcode:p.barcode,name:p.name,nameAf:p.nameAf||'',costPrice:String(p.costPrice),sellPrice:String(p.sellPrice),markup:String(p.markup),category:p.category||'food',stock_qty:typeof p.stock_qty==='number'?String(p.stock_qty):''});setErr('');setModal(p);}
+
+  function calcSell(){
+    const c=parseFloat(form.costPrice),m=parseFloat(form.markup);
+    if(isNaN(c)||isNaN(m)){setErr('Enter valid cost price and markup first');return;}
+    setForm(f=>({...f,sellPrice:(c*(1+m/100)).toFixed(2)}));
+  }
+
+  function save(){
+    if(!form.name.trim()){setErr(t.enterName);return;}
+    if(!form.barcode.trim()){setErr(t.enterBarcode);return;}
+    const cp=parseFloat(form.costPrice);const sp=parseFloat(form.sellPrice);
+    if(isNaN(cp)||cp<0){setErr('Enter a valid cost price');return;}
+    if(isNaN(sp)||sp<0){setErr('Enter a valid sell price');return;}
+    if(modal==='add'&&data.products.find(p=>p.barcode===form.barcode.trim())){setErr(t.productExists);return;}
+    const sqv=form.stock_qty.trim();
+    const prod={
+      id:modal==='add'?uid():modal.id,barcode:form.barcode.trim(),
+      name:form.name.trim(),nameAf:form.nameAf.trim(),
+      costPrice:cp,sellPrice:sp,markup:parseFloat(form.markup)||0,category:form.category,
+      stock_qty:sqv===''?null:Math.max(0,parseInt(sqv)||0)
+    };
+    const nd={...data,products:modal==='add'?[...data.products,prod]:data.products.map(p=>p.id===prod.id?prod:p)};
+    setData(nd);saveData(nd);setModal(null);
+  }
+
+  function doDelete(id){
+    const nd={...data,products:data.products.filter(p=>p.id!==id)};
+    setData(nd);saveData(nd);setModal(null);setDeleteConfirm(null);
+  }
+
+  return(
+    <div style={{height:'100%',display:'flex',flexDirection:'column',background:C.bg,position:'relative'}}>
+      {scanning&&<BarcodeScanner t={t} onScan={code=>{setScanning(false);openAdd(code);}} onClose={()=>setScanning(false)}/>}
+      {receiveModal&&<StockReceiveModal data={data} setData={setData} t={t} lang={lang} onClose={()=>setReceiveModal(false)} onDone={(msg)=>{setReceiveModal(false);setToast(msg);}}/>}
+      {toast&&<Toast msg={toast} onDone={()=>setToast('')}/>}
+      {deleteConfirm&&<ConfirmDialog title={t.deleteItem} message={`Delete "${deleteConfirm.name}"?`} onConfirm={()=>doDelete(deleteConfirm.id)} onCancel={()=>setDeleteConfirm(null)} confirmLabel={t.deleteItem}/>}
+
+      <div style={{padding:'10px 14px 8px',flexShrink:0}}>
+        <div style={{display:'flex',gap:8}}>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder={t.search}
+            style={{flex:1,background:C.white,border:`1.5px solid ${C.border}`,borderRadius:12,padding:'10px 14px',fontSize:14,outline:'none'}}/>
+          <Btn onClick={()=>setScanning(true)} variant='gold' small>📷 Scan</Btn>
+          <Btn onClick={()=>openAdd()} variant='primary' small>+ {lang==='af'?'Voeg by':'Add'}</Btn>
+        </div>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:6}}>
+          <div style={{color:C.muted,fontSize:12,fontWeight:600}}>
+            {products.length} {lang==='af'?'produkte':'products'} · {lang==='af'?'Tik om te wysig':'Tap to edit'}
+          </div>
+          <Btn onClick={()=>setReceiveModal(true)} variant='success' small>📥 {t.receiveStock}</Btn>
+        </div>
+      </div>
+
+      <div style={{flex:1,overflow:'auto',padding:'0 14px'}}>
+        {products.length===0&&<div style={{textAlign:'center',color:C.muted,fontSize:14,padding:'40px 0'}}>{t.noProducts}</div>}
+        {products.map(p=>(
+          <Card key={p.id} onClick={()=>openEdit(p)}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                  <span style={{fontWeight:800,fontSize:14}}>{lang==='af'&&p.nameAf?p.nameAf:p.name}</span>
+                  <Badge label={t[p.category]||p.category} color={catColors[p.category]||C.muted}/>
+                </div>
+                <div style={{color:C.muted,fontSize:11,marginTop:2,fontFamily:'monospace'}}>{p.barcode}</div>
+                <div style={{color:C.muted,fontSize:12,marginTop:2}}>Cost {fmt(p.costPrice)} · Markup {p.markup}%</div>
+                {typeof p.stock_qty==='number'&&(
+                  <div style={{fontSize:11,fontWeight:700,marginTop:3,color:p.stock_qty===0?C.danger:p.stock_qty<=3?C.amber:C.success}}>
+                    📦 {p.stock_qty===0?t.outOfStock:`${p.stock_qty} ${lang==='af'?'in voorraad':'in stock'}`}
+                  </div>
+                )}
+              </div>
+              <div style={{textAlign:'right',paddingLeft:10}}>
+                <div style={{fontWeight:900,fontSize:18,color:C.navy}}>{fmt(p.sellPrice)}</div>
+                <div style={{color:C.success,fontSize:11,fontWeight:600}}>profit {fmt(p.sellPrice-p.costPrice)}</div>
+              </div>
+            </div>
+          </Card>
+        ))}
+        <div style={{height:20}}/>
+      </div>
+
+      {modal&&(
+        <Modal title={modal==='add'?t.addProduct:`${t.edit}: ${modal.name||''}`} onClose={()=>setModal(null)}>
+          <div style={{paddingTop:16}}>
+            <div style={{display:'flex',gap:8}}>
+              <div style={{flex:1}}><Input label={t.barcode} value={form.barcode} onChange={e=>setForm(f=>({...f,barcode:e.target.value}))} placeholder={t.enterBarcode}/></div>
+              <Btn onClick={()=>{setModal(null);setScanning(true);}} variant='gold' small style={{alignSelf:'flex-end',marginBottom:12}}>📷</Btn>
+            </div>
+            <Input label={`${t.productName} (English)`} value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder={t.enterName}/>
+            <Input label={`${t.productName} (Afrikaans)`} value={form.nameAf} onChange={e=>setForm(f=>({...f,nameAf:e.target.value}))} placeholder="Optional"/>
+            <Sel label={t.category} value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value}))}
+              options={['food','drinks','snacks','household','other'].map(c=>({v:c,l:t[c]||c}))}/>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+              <Input label={t.costPrice} value={form.costPrice} onChange={e=>setForm(f=>({...f,costPrice:e.target.value}))} type="number"/>
+              <Input label={t.markup} value={form.markup} onChange={e=>setForm(f=>({...f,markup:e.target.value}))} type="number"/>
+            </div>
+            <div style={{display:'flex',gap:8,alignItems:'flex-end'}}>
+              <div style={{flex:1}}><Input label={t.sellPrice} value={form.sellPrice} onChange={e=>setForm(f=>({...f,sellPrice:e.target.value}))} type="number"/></div>
+              <Btn onClick={calcSell} variant='ghost' small style={{marginBottom:12}}>Auto ↻</Btn>
+            </div>
+            <div style={{fontSize:11,color:C.muted,marginBottom:12}}>↑ {t.autoCalc}</div>
+            <Input label={`📦 ${t.stockQty}`} value={form.stock_qty} onChange={e=>setForm(f=>({...f,stock_qty:e.target.value}))} type="number"
+              note={lang==='af'?'Hoeveel eenhede in voorraad (los leeg as nie gevolg)':'How many units in stock (leave empty = not tracked)'}/>
+            {err&&<div style={{color:C.danger,fontSize:13,marginBottom:10,fontWeight:600,background:C.dangerLight,padding:'8px 12px',borderRadius:8}}>{err}</div>}
+            <Btn onClick={save} variant='primary' style={{width:'100%',marginBottom:10}}>{t.save}</Btn>
+            {modal!=='add'&&<Btn onClick={()=>setDeleteConfirm(modal)} variant='dangerOutline' style={{width:'100%'}}>🗑️ {t.deleteItem}: {modal.name}</Btn>}
+            <div style={{height:10}}/>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// SALE SCREEN
+// ─────────────────────────────────────────────────────────────
+function SaleScreen({data,setData,t,lang,setTab}){
+  const [step,setStep]=React.useState(1);
+  const [customer,setCustomer]=React.useState(null);
+  const [basket,setBasket]=React.useState([]);
+  const [scanning,setScanning]=React.useState(false);
+  const [search,setSearch]=React.useState('');
+  const [custSearch,setCustSearch]=React.useState('');
+  const [toast,setToast]=React.useState('');
+  const [notFound,setNotFound]=React.useState('');
+  const [payType,setPayType]=React.useState('credit');
+  const [showPayTypeModal,setShowPayTypeModal]=React.useState(false);
+  const [quickAddModal,setQuickAddModal]=React.useState(false);
+  const [quickForm,setQuickForm]=React.useState({name:'',phone:''});
+  const [editItemModal,setEditItemModal]=React.useState(null);
+
+  function handleScan(code){setScanning(false);setNotFound('');const p=data.products.find(x=>x.barcode===code);if(p)addToBasket(p);else setNotFound(code);}
+
+  function addToBasket(p){
+    setBasket(b=>{
+      const ex=b.find(i=>i.productId===p.id);
+      if(ex)return b.map(i=>i.productId===p.id?{...i,qty:i.qty+1,total:parseFloat(((i.qty+1)*i.price).toFixed(2))}:i);
+      return[...b,{productId:p.id,name:lang==='af'&&p.nameAf?p.nameAf:p.name,qty:1,price:p.sellPrice,total:p.sellPrice,payType}];
+    });
+    setSearch('');
+  }
+
+  function changeQty(id,delta){
+    setBasket(b=>b.map(i=>{
+      if(i.productId!==id)return i;
+      const qty=Math.max(0,i.qty+delta);
+      return{...i,qty,total:parseFloat((qty*i.price).toFixed(2))};
+    }).filter(i=>i.qty>0));
+  }
+
+  function removeItem(id){setBasket(b=>b.filter(i=>i.productId!==id));}
+  function toggleItemPayType(id){setBasket(b=>b.map(i=>i.productId===id?{...i,payType:(i.payType||'credit')==='cash'?'credit':'cash'}:i));}
+
+  function saveEditItem(){
+    const{productId,qty:qStr,price:pStr,payType:pt}=editItemModal;
+    const q=Math.max(1,parseInt(qStr)||1);const p=parseFloat(pStr)||0;
+    setBasket(b=>b.map(i=>i.productId===productId?{...i,qty:q,price:p,total:parseFloat((q*p).toFixed(2)),payType:pt}:i));
+    setEditItemModal(null);
+  }
+
+  const basketTotal=basket.reduce((s,i)=>s+i.total,0);
+  const creditTotal=basket.filter(i=>(i.payType||'credit')==='credit').reduce((s,i)=>s+i.total,0);
+  const cashPaid=basket.filter(i=>i.payType==='cash').reduce((s,i)=>s+i.total,0);
+
+  function selectCustomer(c){setCustomer(c);setShowPayTypeModal(true);}
+
+  function startCashSale(){
+    setCustomer({id:'CASH',name:'Cash Sale',phone:'',balance:0,isCash:true});
+    setPayType('cash');setBasket(b=>b.map(i=>({...i,payType:'cash'})));setStep(2);
+  }
+
+  function quickAddCustomer(){
+    if(!quickForm.name.trim())return;
+    const c={id:uid(),name:quickForm.name.trim(),phone:quickForm.phone.trim(),balance:0};
+    const nd={...data,customers:[...data.customers,c]};
+    setData(nd);saveData(nd);setCustomer(c);setQuickAddModal(false);setQuickForm({name:'',phone:''});setShowPayTypeModal(true);
+  }
+
+  function choosePayType(type){
+    setPayType(type);setBasket(b=>b.map(i=>({...i,payType:type})));setShowPayTypeModal(false);setStep(2);
+  }
+
+  function confirmSale(){
+    const isCash=customer.isCash||creditTotal===0;
+    const tx={id:uid(),customerId:isCash&&customer.isCash?null:customer.id,customerName:customer.name,
+      date:new Date().toISOString(),items:[...basket],total:basketTotal,creditTotal,cashTotal:cashPaid,
+      status:creditTotal>0?'open':'cash'};
+    let newCust=data.customers;
+    if(!customer.isCash&&creditTotal>0)
+      newCust=data.customers.map(c=>c.id===customer.id?{...c,balance:parseFloat((c.balance+creditTotal).toFixed(2))}:c);
+    const updatedProducts=data.products.map(p=>{
+      const sold=basket.find(i=>i.productId===p.id);
+      if(!sold||typeof p.stock_qty!=='number')return p;
+      return{...p,stock_qty:Math.max(0,p.stock_qty-sold.qty)};
+    });
+    const depleted=updatedProducts.filter(p=>{const sold=basket.find(i=>i.productId===p.id);return sold&&typeof p.stock_qty==='number'&&p.stock_qty===0;});
+    const nd={...data,transactions:[...data.transactions,tx],customers:newCust,products:updatedProducts};
+    setData(nd);saveData(nd);
+    const msg=customer.isCash||creditTotal===0?`💵 Cash: ${fmt(cashPaid)}`
+      :creditTotal>0&&cashPaid>0?`✓ Credit ${fmt(creditTotal)} + Cash ${fmt(cashPaid)}`
+      :`✓ ${t.addedToCredit}`;
+    setToast(msg);
+    const wasCash=customer.isCash;
+    setBasket([]);setCustomer(null);setStep(1);setNotFound('');setPayType('credit');
+    if(depleted.length>0){
+      setTimeout(()=>{
+        if(!wasCash&&creditTotal>0)setTab('customers');
+        setToast(`⚠️ Out of stock: ${depleted.map(p=>p.name).join(', ')}`);
+        setTimeout(()=>setToast(''),3500);
+      },2000);
+    }else{
+      setTimeout(()=>{setToast('');if(!wasCash&&creditTotal>0)setTab('customers');},2000);
+    }
+  }
+
+  const filteredProds=data.products.filter(p=>
+    !search||(p.name.toLowerCase().includes(search.toLowerCase())||(p.nameAf||'').toLowerCase().includes(search.toLowerCase()))
+  );
+  const filteredCusts=data.customers.filter(c=>
+    !custSearch||c.name.toLowerCase().includes(custSearch.toLowerCase())||c.phone.includes(custSearch)
+  );
+
+  return(
+    <div style={{height:'100%',display:'flex',flexDirection:'column',background:C.bg,position:'relative'}}>
+      {scanning&&<BarcodeScanner t={t} onScan={handleScan} onClose={()=>setScanning(false)}/>}
+      {toast&&<Toast msg={toast} onDone={()=>setToast('')}/>}
+
+      {/* Payment type modal (slides up) */}
+      {showPayTypeModal&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:3000,display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
+          <div style={{background:'#fff',borderRadius:'20px 20px 0 0',padding:'24px 20px 36px',width:'100%',maxWidth:430}}>
+            <div style={{fontWeight:900,fontSize:18,color:C.text,marginBottom:4,textAlign:'center'}}>Payment Type</div>
+            <div style={{fontSize:13,color:C.muted,textAlign:'center',marginBottom:24}}>{customer?.name}</div>
+            <Btn onClick={()=>choosePayType('credit')} variant='primary' style={{width:'100%',marginBottom:12,padding:'16px',fontSize:16,borderRadius:14}}>
+              💳 Credit — Add to Tab
+            </Btn>
+            <Btn onClick={()=>choosePayType('cash')} variant='gold' style={{width:'100%',padding:'16px',fontSize:16,borderRadius:14}}>
+              💵 Cash — Paying Now
+            </Btn>
+            <Btn onClick={()=>setShowPayTypeModal(false)} variant='ghost' style={{width:'100%',marginTop:10}}>‹ Back</Btn>
+          </div>
+        </div>
+      )}
+
+      {/* Quick add customer modal */}
+      {quickAddModal&&(
+        <Modal title="➕ New Customer" onClose={()=>setQuickAddModal(false)}>
+          <div style={{paddingTop:12}}>
+            <Input label="Customer Name" value={quickForm.name} onChange={e=>setQuickForm(f=>({...f,name:e.target.value}))} placeholder="e.g. John Sithole"/>
+            <Input label="Phone (optional)" value={quickForm.phone} onChange={e=>setQuickForm(f=>({...f,phone:e.target.value}))} type="tel" placeholder="e.g. 082 123 4567"/>
+            <div style={{display:'flex',gap:10,marginTop:4}}>
+              <Btn onClick={()=>setQuickAddModal(false)} variant='ghost' style={{flex:1}}>Cancel</Btn>
+              <Btn onClick={quickAddCustomer} variant='primary' style={{flex:2}}>Add & Select →</Btn>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Edit item modal (step 3) */}
+      {editItemModal&&(
+        <Modal title={`✏️ ${editItemModal.name}`} onClose={()=>setEditItemModal(null)}>
+          <div style={{paddingTop:12}}>
+            <Input label="Quantity" value={String(editItemModal.qty)} onChange={e=>setEditItemModal(m=>({...m,qty:e.target.value}))} type="number"/>
+            <Input label="Price per item (R)" value={String(editItemModal.price)} onChange={e=>setEditItemModal(m=>({...m,price:e.target.value}))} type="number"/>
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:12,fontWeight:700,color:C.muted,textTransform:'uppercase',letterSpacing:.5,marginBottom:8}}>Payment Type</div>
+              <div style={{display:'flex',gap:10}}>
+                <button onClick={()=>setEditItemModal(m=>({...m,payType:'credit'}))}
+                  style={{flex:1,padding:'12px',borderRadius:12,border:`2px solid ${editItemModal.payType!=='cash'?C.navy:C.border}`,
+                    background:editItemModal.payType!=='cash'?'#EFF6FF':'transparent',fontWeight:700,fontSize:14,cursor:'pointer',
+                    color:editItemModal.payType!=='cash'?C.navy:C.muted}}>💳 Credit</button>
+                <button onClick={()=>setEditItemModal(m=>({...m,payType:'cash'}))}
+                  style={{flex:1,padding:'12px',borderRadius:12,border:`2px solid ${editItemModal.payType==='cash'?C.amber:C.border}`,
+                    background:editItemModal.payType==='cash'?'#FEF3C7':'transparent',fontWeight:700,fontSize:14,cursor:'pointer',
+                    color:editItemModal.payType==='cash'?C.amber:C.muted}}>💵 Cash</button>
+              </div>
+            </div>
+            <div style={{display:'flex',gap:10}}>
+              <Btn onClick={()=>setEditItemModal(null)} variant='ghost' style={{flex:1}}>Cancel</Btn>
+              <Btn onClick={saveEditItem} variant='primary' style={{flex:1}}>Save</Btn>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Progress steps */}
+      <div style={{background:C.white,padding:'8px 20px',display:'flex',gap:6,alignItems:'center',flexShrink:0,borderBottom:`1px solid ${C.border}`}}>
+        {[{n:1,l:t.selectCustomer},{n:2,l:t.basket},{n:3,l:t.confirm}].map((s,i)=>(
+          <React.Fragment key={s.n}>
+            <div style={{display:'flex',alignItems:'center',gap:4,flex:1}}>
+              <div style={{width:22,height:22,borderRadius:11,background:step>=s.n?C.navy:'#e2e8f0',color:step>=s.n?'#fff':C.muted,fontSize:11,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                {step>s.n?'✓':s.n}
+              </div>
+              <span style={{fontSize:11,fontWeight:700,color:step>=s.n?C.navy:C.muted,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{s.l}</span>
+            </div>
+            {i<2&&<div style={{width:16,height:2,background:step>s.n?C.navy:C.border,borderRadius:1,flexShrink:0}}/>}
+          </React.Fragment>
+        ))}
+      </div>
+
+      {/* STEP 1: Select Customer */}
+      {step===1&&(
+        <div style={{flex:1,overflow:'auto',padding:'12px 14px'}}>
+          <Btn onClick={startCashSale} variant='gold' style={{width:'100%',marginBottom:10,padding:'14px',fontSize:15,borderRadius:14}}>
+            💵 Cash Sale (No Tab / Walk-in)
+          </Btn>
+          <div style={{display:'flex',gap:8,marginBottom:10}}>
+            <input value={custSearch} onChange={e=>setCustSearch(e.target.value)} placeholder="🔍 Search customer..."
+              style={{flex:1,background:C.white,border:`1.5px solid ${C.border}`,borderRadius:12,padding:'9px 12px',fontSize:13,outline:'none'}}/>
+            <button onClick={()=>setQuickAddModal(true)}
+              style={{background:C.navy,border:'none',color:'#fff',borderRadius:12,padding:'9px 14px',fontSize:12,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>
+              ➕ New
+            </button>
+          </div>
+          <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:'uppercase',letterSpacing:.5,marginBottom:8}}>Credit Customers</div>
+          {filteredCusts.length===0&&<div style={{color:C.muted,textAlign:'center',padding:'20px 0',fontSize:14}}>{t.noCustomers}</div>}
+          {filteredCusts.map(c=>(
+            <Card key={c.id} onClick={()=>selectCustomer(c)} style={{border:`2px solid ${customer?.id===c.id?C.navy:'transparent'}`,cursor:'pointer'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <div>
+                  <div style={{fontWeight:800,fontSize:15}}>{c.name}</div>
+                  <div style={{color:C.muted,fontSize:12}}>{c.phone}</div>
+                </div>
+                <div style={{textAlign:'right'}}>
+                  <div style={{fontWeight:900,fontSize:16,color:c.balance>0?C.amber:C.success}}>{fmt(c.balance)}</div>
+                  <div style={{color:C.muted,fontSize:11}}>{t.outstanding}</div>
+                </div>
+              </div>
+            </Card>
+          ))}
+          <div style={{height:20}}/>
+        </div>
+      )}
+
+      {/* STEP 2: Basket */}
+      {step===2&&(
+        <div style={{flex:1,overflow:'auto'}}>
+          <div style={{background:C.navy,padding:'10px 14px',display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0}}>
+            <div>
+              <div style={{color:'rgba(255,255,255,0.55)',fontSize:11,fontWeight:600}}>Customer</div>
+              <div style={{color:'#fff',fontWeight:800,fontSize:15}}>{customer?.name}</div>
+            </div>
+            <div style={{display:'flex',gap:8,alignItems:'center'}}>
+              <span style={{background:payType==='cash'?C.gold:'rgba(255,255,255,0.2)',color:payType==='cash'?C.navyDark:'#fff',
+                borderRadius:8,padding:'4px 10px',fontSize:11,fontWeight:700}}>
+                {payType==='cash'?'💵 Cash':'💳 Credit'}
+              </span>
+              <button onClick={()=>setStep(1)} style={{background:'rgba(255,255,255,0.15)',border:'none',color:'#fff',borderRadius:8,padding:'7px 14px',fontSize:12,fontWeight:700,cursor:'pointer'}}>‹ Change</button>
+            </div>
+          </div>
+
+          <div style={{margin:'10px 14px 0',background:C.white,borderRadius:14,overflow:'hidden',border:`1px solid ${C.border}`}}>
+            <div style={{padding:'10px 14px',borderBottom:`1px solid ${C.border}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <span style={{fontWeight:800,fontSize:13}}>🛒 {t.basket} ({basket.length} {t.items})</span>
+              {basket.length>0&&<button onClick={()=>setBasket(b=>b.slice(0,-1))} style={{background:'none',border:'none',color:C.amber,fontSize:12,fontWeight:700,cursor:'pointer'}}>↩ {t.undo}</button>}
+            </div>
+            {basket.length===0?(
+              <div style={{padding:'16px',textAlign:'center',color:C.muted,fontSize:13,lineHeight:1.5}}>{t.emptyBasket}</div>
+            ):(
+              basket.map(item=>{
+                const ipt=(item.payType||'credit')==='cash';
+                return(
+                <div key={item.productId} style={{padding:'10px 12px',borderBottom:`1px solid ${C.border}`,display:'flex',alignItems:'center',gap:8}}>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontWeight:700,fontSize:13,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{item.name}</div>
+                    <div style={{display:'flex',gap:6,alignItems:'center',marginTop:3}}>
+                      <span style={{color:C.muted,fontSize:11}}>{fmt(item.price)} {t.perItem}</span>
+                      <button onClick={()=>toggleItemPayType(item.productId)}
+                        style={{background:ipt?'#FEF3C7':'#EFF6FF',color:ipt?C.amber:C.navyLight,
+                          border:`1px solid ${ipt?C.amber:C.navyLight}`,borderRadius:6,
+                          padding:'2px 7px',fontSize:10,fontWeight:800,cursor:'pointer'}}>
+                        {ipt?'💵 Cash':'💳 Credit'}
+                      </button>
+                    </div>
+                  </div>
+                  <div style={{display:'flex',alignItems:'center',gap:5}}>
+                    <button onClick={()=>changeQty(item.productId,-1)} style={{width:26,height:26,borderRadius:13,background:C.bg,border:`1px solid ${C.border}`,cursor:'pointer',fontSize:16,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',color:C.navy}}>−</button>
+                    <span style={{fontWeight:800,fontSize:14,minWidth:18,textAlign:'center'}}>{item.qty}</span>
+                    <button onClick={()=>changeQty(item.productId,1)} style={{width:26,height:26,borderRadius:13,background:C.navy,border:'none',cursor:'pointer',fontSize:16,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',color:'#fff'}}>+</button>
+                  </div>
+                  <div style={{textAlign:'right',minWidth:60}}>
+                    <div style={{fontWeight:800,fontSize:13,color:C.navy}}>{fmt(item.total)}</div>
+                    <button onClick={()=>removeItem(item.productId)} style={{background:'none',border:'none',color:C.danger,fontSize:11,fontWeight:700,cursor:'pointer',padding:0}}>🗑️ {t.removeFromBasket}</button>
+                  </div>
+                </div>
+                );
+              })
+            )}
+            {basket.length>0&&(
+              <div style={{padding:'10px 14px',background:C.goldLight}}>
+                {creditTotal>0&&cashPaid>0?(
+                  <>
+                    <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
+                      <span style={{fontSize:12,fontWeight:700,color:C.navyDark}}>💳 Credit</span>
+                      <span style={{fontSize:13,fontWeight:800,color:C.navy}}>{fmt(creditTotal)}</span>
+                    </div>
+                    <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
+                      <span style={{fontSize:12,fontWeight:700,color:C.navyDark}}>💵 Cash</span>
+                      <span style={{fontSize:13,fontWeight:800,color:C.amber}}>{fmt(cashPaid)}</span>
+                    </div>
+                    <div style={{display:'flex',justifyContent:'space-between',borderTop:`1px solid ${C.gold}`,paddingTop:4}}>
+                      <span style={{fontWeight:800,color:C.navyDark}}>{t.total}</span>
+                      <span style={{fontWeight:900,fontSize:18,color:C.navy}}>{fmt(basketTotal)}</span>
+                    </div>
+                  </>
+                ):(
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                    <span style={{fontWeight:800,color:C.navyDark}}>{t.total}</span>
+                    <span style={{fontWeight:900,fontSize:18,color:C.navy}}>{fmt(basketTotal)}</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {notFound&&(
+            <div style={{margin:'8px 14px',background:C.dangerLight,border:`1px solid ${C.danger}`,borderRadius:10,padding:'10px 12px',fontSize:13,color:C.danger,fontWeight:600}}>
+              ⚠️ Barcode "{notFound}" not in stock.{' '}
+              <button onClick={()=>setNotFound('')} style={{background:'none',border:'none',color:C.danger,fontWeight:700,cursor:'pointer',textDecoration:'underline'}}>Dismiss</button>
+            </div>
+          )}
+
+          <div style={{padding:'10px 14px 0'}}>
+            <Btn onClick={()=>setScanning(true)} variant='gold' style={{width:'100%',marginBottom:10}}>📷 {t.scanBarcode}</Btn>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder={`🔍 ${t.search}`}
+              style={{width:'100%',background:C.white,border:`1.5px solid ${C.border}`,borderRadius:12,padding:'10px 14px',fontSize:14,outline:'none',marginBottom:8}}/>
+            <div style={{fontSize:11,color:C.muted,fontWeight:600,marginBottom:6}}>{lang==='af'?'Tik produk om by te voeg':'Tap product to add to basket'}</div>
+            {filteredProds.map(p=>{
+              const outOfStock=typeof p.stock_qty==='number'&&p.stock_qty===0;
+              const lowStock=typeof p.stock_qty==='number'&&p.stock_qty>0&&p.stock_qty<=3;
+              return(
+              <div key={p.id} onClick={()=>addToBasket(p)}
+                style={{background:C.white,borderRadius:12,padding:'10px 14px',marginBottom:6,display:'flex',justifyContent:'space-between',alignItems:'center',
+                  border:`1.5px solid ${outOfStock?C.danger:lowStock?C.amber:C.border}`,cursor:'pointer',opacity:outOfStock?.65:1}}>
+                <div>
+                  <div style={{fontWeight:700,fontSize:13}}>{lang==='af'&&p.nameAf?p.nameAf:p.name}</div>
+                  <div style={{color:C.muted,fontSize:11}}>{p.barcode}</div>
+                  {typeof p.stock_qty==='number'&&(
+                    <div style={{fontSize:10,fontWeight:700,marginTop:1,color:outOfStock?C.danger:lowStock?C.amber:C.success}}>
+                      {outOfStock?`⚠️ ${t.outOfStock}`:lowStock?`⚠️ ${p.stock_qty} left`:`📦 ${p.stock_qty} left`}
+                    </div>
+                  )}
+                </div>
+                <div style={{display:'flex',alignItems:'center',gap:8}}>
+                  <span style={{fontWeight:800,fontSize:14,color:C.navy}}>{fmt(p.sellPrice)}</span>
+                  <div style={{width:28,height:28,borderRadius:14,background:outOfStock?C.muted:C.navy,display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontSize:18,fontWeight:900}}>+</div>
+                </div>
+              </div>
+              );
+            })}
+          </div>
+
+          {basket.length>0&&(
+            <div style={{padding:'12px 14px 0'}}>
+              <Btn onClick={()=>setStep(3)} variant='primary' style={{width:'100%'}}>
+                Review & Confirm → ({basket.length} items, {fmt(basketTotal)})
+              </Btn>
+            </div>
+          )}
+          <div style={{height:20}}/>
+        </div>
+      )}
+
+      {/* STEP 3: Review & Confirm */}
+      {step===3&&(
+        <div style={{flex:1,overflow:'auto',padding:'14px'}}>
+          <Card style={{marginBottom:12}}>
+            <div style={{marginBottom:10,paddingBottom:10,borderBottom:`1px solid ${C.border}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div>
+                <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:'uppercase',letterSpacing:.5}}>Customer</div>
+                <div style={{fontSize:18,fontWeight:900,color:C.navy,marginTop:2}}>{customer?.name}</div>
+              </div>
+              <span style={{background:payType==='cash'?'#FEF3C7':'#EFF6FF',color:payType==='cash'?C.amber:C.navyLight,
+                borderRadius:8,padding:'5px 11px',fontSize:12,fontWeight:800}}>
+                {payType==='cash'?'💵 Cash':'💳 Credit'}
+              </span>
+            </div>
+            {basket.map(item=>{
+              const ipt=(item.payType||'credit')==='cash';
+              return(
+              <div key={item.productId} style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8,gap:8}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <span style={{fontWeight:600,fontSize:14}}>{item.name}</span>
+                  <span style={{color:C.muted,fontSize:13}}> ×{item.qty}</span>
+                  <span style={{background:ipt?'#FEF3C7':'#EFF6FF',color:ipt?C.amber:C.navyLight,
+                    borderRadius:4,padding:'1px 6px',fontSize:10,fontWeight:700,marginLeft:6}}>
+                    {ipt?'💵':'💳'}
+                  </span>
+                </div>
+                <div style={{display:'flex',gap:8,alignItems:'center',flexShrink:0}}>
+                  <button onClick={()=>setEditItemModal({...item,qty:String(item.qty),price:String(item.price),payType:item.payType||'credit'})}
+                    style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:'4px 9px',fontSize:13,cursor:'pointer',color:C.muted}}>✏️</button>
+                  <span style={{fontWeight:700,fontSize:14,minWidth:58,textAlign:'right'}}>{fmt(item.total)}</span>
+                </div>
+              </div>
+              );
+            })}
+            <div style={{borderTop:`2px solid ${C.navy}`,paddingTop:10,marginTop:6}}>
+              {creditTotal>0&&cashPaid>0?(
+                <>
+                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+                    <span style={{fontSize:13,fontWeight:700,color:C.navyDark}}>💳 Credit</span>
+                    <span style={{fontSize:13,fontWeight:800,color:C.navy}}>{fmt(creditTotal)}</span>
+                  </div>
+                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:6}}>
+                    <span style={{fontSize:13,fontWeight:700,color:C.amber}}>💵 Cash</span>
+                    <span style={{fontSize:13,fontWeight:800,color:C.amber}}>{fmt(cashPaid)}</span>
+                  </div>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',borderTop:`1px solid ${C.border}`,paddingTop:6}}>
+                    <span style={{fontWeight:800,fontSize:15}}>{t.total}</span>
+                    <span style={{fontWeight:900,fontSize:24,color:C.navy}}>{fmt(basketTotal)}</span>
+                  </div>
+                </>
+              ):(
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                  <span style={{fontWeight:800,fontSize:15}}>{t.total}</span>
+                  <span style={{fontWeight:900,fontSize:24,color:C.navy}}>{fmt(basketTotal)}</span>
+                </div>
+              )}
+            </div>
+          </Card>
+          {!customer.isCash&&creditTotal>0&&(
+            <div style={{background:C.goldLight,border:`1px solid ${C.gold}`,borderRadius:12,padding:'12px 16px',marginBottom:16}}>
+              <div style={{fontSize:12,fontWeight:700,color:C.navyDark,marginBottom:2}}>{t.newBalance}</div>
+              <div style={{fontSize:22,fontWeight:900,color:C.navy}}>{fmt((customer?.balance||0)+creditTotal)}</div>
+              <div style={{fontSize:11,color:C.muted,marginTop:2}}>{t.deductNote}</div>
+            </div>
+          )}
+          {(customer.isCash||creditTotal===0)&&(
+            <div style={{background:'#ECFDF5',border:'1px solid #6EE7B7',borderRadius:12,padding:'12px 16px',marginBottom:16}}>
+              <div style={{fontSize:14,fontWeight:700,color:'#065f46'}}>💵 Cash Payment — {fmt(cashPaid)}</div>
+              <div style={{fontSize:12,color:'#047857',marginTop:2}}>No credit tab — sale recorded as paid</div>
+            </div>
+          )}
+          <div style={{display:'flex',gap:10}}>
+            <Btn onClick={()=>setStep(2)} variant='outline' style={{flex:1}}>‹ {t.back}</Btn>
+            <Btn onClick={confirmSale} variant='primary' style={{flex:2}}>✓ {t.confirmSale}</Btn>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// PIN CONFIRM MODAL — used before destructive actions
+// ─────────────────────────────────────────────────────────────
+function PINConfirmModal({title,message,onConfirm,onCancel}){
+  const[digits,setDigits]=React.useState([]);
+  const[shake,setShake]=React.useState(false);
+  const[err,setErr]=React.useState('');
+  const stored=localStorage.getItem('millbank_pin');
+
+  function press(d){
+    if(digits.length>=4)return;
+    const next=[...digits,d];
+    setDigits(next);
+    if(next.length===4){
+      if(simpleHash(next.join(''))===stored){
+        onConfirm();
+      } else {
+        setShake(true);setErr('Wrong PIN — try again');
+        setTimeout(()=>{setShake(false);setDigits([]);setErr('');},700);
+      }
+    }
+  }
+  function del(){setDigits(d=>d.slice(0,-1));setErr('');}
+
+  return(
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.65)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
+      <div style={{background:C.white,borderRadius:22,padding:'26px 22px',width:'100%',maxWidth:310,boxShadow:'0 20px 60px rgba(0,0,0,0.3)'}}>
+        <div style={{textAlign:'center',marginBottom:18}}>
+          <div style={{fontSize:28,marginBottom:8}}>🔒</div>
+          <div style={{fontWeight:900,fontSize:16,color:C.navy,marginBottom:4}}>{title}</div>
+          <div style={{fontSize:13,color:C.muted,lineHeight:1.4}}>{message}</div>
+        </div>
+        <div style={{display:'flex',justifyContent:'center',gap:14,marginBottom:6,animation:shake?'shake .5s ease':'none'}}>
+          {[0,1,2,3].map(i=>(
+            <div key={i} style={{width:16,height:16,borderRadius:'50%',
+              background:digits.length>i?C.navy:'transparent',
+              border:`2.5px solid ${digits.length>i?C.navy:C.border}`,transition:'background .15s'}}/>
+          ))}
+        </div>
+        {err&&<div style={{textAlign:'center',color:C.danger,fontSize:12,marginBottom:6,fontWeight:700}}>{err}</div>}
+        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,margin:'14px 0 12px'}}>
+          {[1,2,3,4,5,6,7,8,9,'',0,'⌫'].map((k,i)=>(
+            k===''?<div key={i}/>:
+            <button key={i} onClick={()=>k==='⌫'?del():press(String(k))}
+              className="pin-btn"
+              style={{padding:'15px 0',borderRadius:13,border:'none',
+                background:k==='⌫'?C.bg:`${C.navy}`,
+                color:k==='⌫'?C.text:'#fff',fontSize:20,fontWeight:800,cursor:'pointer'}}>
+              {k}
+            </button>
+          ))}
+        </div>
+        <Btn onClick={onCancel} variant='outline' style={{width:'100%',marginTop:2}}>Cancel</Btn>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// CUSTOMERS
+// ─────────────────────────────────────────────────────────────
+// ─── INVOICE VIEW (mobile) ────────────────────────────
+function InvoiceView({customer,data,onClose}){
+  const shop=getShopInfo();
+  const[invNum]=React.useState(()=>{
+    const n=parseInt(localStorage.getItem('millbank_inv_counter')||'0')+1;
+    localStorage.setItem('millbank_inv_counter',String(n));
+    return'INV'+String(n).padStart(4,'0');
+  });
+  const invDate=new Date().toLocaleDateString('en-ZA',{day:'2-digit',month:'2-digit',year:'numeric'});
+  React.useEffect(()=>{
+    document.body.classList.add('invoice-open');
+    return()=>document.body.classList.remove('invoice-open');
+  },[]);
+  const txs=data.transactions.filter(tx=>tx.customerId===customer.id&&(tx.status==='open'||tx.status==='cash'))
+    .sort((a,b)=>new Date(a.date)-new Date(b.date));
+  const fmtTxDate=d=>new Date(d).toLocaleDateString('en-ZA',{day:'2-digit',month:'short',year:'numeric'});
+  let rowCounter=0;
+  const txRows=[];
+  txs.forEach(tx=>{
+    txRows.push({type:'date',id:'d_'+tx.id,date:tx.date,txStatus:tx.status});
+    tx.items.forEach((item,i)=>{rowCounter++;txRows.push({type:'item',key:tx.id+'_'+i,num:rowCounter,...item,txStatus:tx.status});});
+  });
+  const creditTotal=txRows.filter(r=>r.type==='item'&&r.txStatus==='open').reduce((s,r)=>s+r.total,0);
+  const cashTotal=txRows.filter(r=>r.type==='item'&&r.txStatus==='cash').reduce((s,r)=>s+r.total,0);
+  const subtotal=creditTotal+cashTotal;
+  const balanceDue=parseFloat(customer.balance||0);
+  const docType=creditTotal>0&&cashTotal>0?'INVOICE & RECEIPT':cashTotal>0?'RECEIPT':'INVOICE';
+  return(
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.82)',zIndex:5000,display:'flex',flexDirection:'column',overflow:'auto'}}>
+      <div style={{display:'flex',gap:10,padding:'14px 16px',flexShrink:0}}>
+        <button onClick={onClose}
+          style={{background:'rgba(255,255,255,0.15)',border:'none',color:'#fff',borderRadius:10,padding:'10px 18px',fontSize:14,fontWeight:700,cursor:'pointer'}}>
+          ✕ Close
+        </button>
+        <button onClick={()=>window.print()}
+          style={{flex:1,background:C.gold,border:'none',color:C.navyDark,borderRadius:10,padding:'10px 18px',fontSize:14,fontWeight:800,cursor:'pointer'}}>
+          🖨️ Print / Save PDF
+        </button>
+      </div>
+      <div style={{fontSize:11,color:'rgba(255,255,255,0.5)',textAlign:'center',marginTop:-4,marginBottom:8}}>
+        Tap Print → choose "Save as PDF" to download
+      </div>
+      <div className="invoice-print-area" style={{background:'#fff',margin:'0 12px 24px',borderRadius:16,padding:'28px 24px',fontFamily:"'Nunito',sans-serif",color:'#1E293B',boxShadow:'0 8px 40px rgba(0,0,0,0.3)'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:24,paddingBottom:18,borderBottom:'2px solid #E2E8F0'}}>
+          <div>
+            <div style={{fontSize:16,fontWeight:900,color:'#0f2743'}}>{shop.name}</div>
+            {shop.address&&<div style={{fontSize:12,color:'#64748B',marginTop:3}}>{shop.address}</div>}
+            {shop.email&&<div style={{fontSize:12,color:'#64748B',marginTop:2}}>{shop.email}</div>}
+          </div>
+          <div style={{textAlign:'right'}}>
+            <div style={{fontSize:20,fontWeight:900,color:'#0f2743'}}>{docType}</div>
+            <div style={{fontSize:12,color:'#64748B',marginTop:4}}>#{invNum}</div>
+            <div style={{fontSize:12,color:'#64748B'}}>Date: {invDate}</div>
+          </div>
+        </div>
+        <div style={{marginBottom:20}}>
+          <span style={{fontSize:13,fontWeight:800,color:'#1E293B'}}>Bill To: </span>
+          <span style={{fontSize:14,fontWeight:900,color:'#0f2743'}}>{customer.name}</span>
+          {customer.phone&&<div style={{fontSize:12,color:'#64748B',marginTop:3}}>{customer.phone}</div>}
+        </div>
+        <table style={{width:'100%',borderCollapse:'collapse',marginBottom:20,fontSize:12}}>
+          <thead>
+            <tr style={{background:'#F1F5F9'}}>
+              {['#','Item','Qty','Price','Total'].map((h,i)=>(
+                <th key={h} style={{padding:'9px 8px',textAlign:i>=2?'right':i===0?'center':'left',fontSize:11,fontWeight:800,color:'#64748B',textTransform:'uppercase'}}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {txRows.length===0?(
+              <tr><td colSpan={5} style={{padding:'20px',textAlign:'center',color:'#94A3B8',fontSize:13}}>No transactions found for this customer</td></tr>
+            ):txRows.map(row=>row.type==='date'?(
+              <tr key={row.id}>
+                <td colSpan={5} style={{padding:'7px 8px',background:row.txStatus==='cash'?'#F0FDF4':'#F8FAFC',
+                  fontSize:11,fontWeight:700,color:row.txStatus==='cash'?'#15803d':'#475569',borderBottom:'1px solid #E2E8F0'}}>
+                  📅 {fmtTxDate(row.date)}
+                  {row.txStatus==='cash'&&<span style={{marginLeft:8,background:'#dcfce7',color:'#15803d',borderRadius:4,padding:'1px 6px',fontSize:10,fontWeight:800}}>✓ CASH PAID</span>}
+                  {row.txStatus==='open'&&<span style={{marginLeft:8,background:'#FEF3C7',color:'#92400e',borderRadius:4,padding:'1px 6px',fontSize:10,fontWeight:800}}>CREDIT</span>}
+                </td>
+              </tr>
+            ):(
+              <tr key={row.key} style={{borderBottom:'1px solid #E2E8F0',background:row.txStatus==='cash'?'#F0FDF4':'transparent'}}>
+                <td style={{padding:'10px 8px',textAlign:'center',color:'#94A3B8'}}>{row.num}</td>
+                <td style={{padding:'10px 8px',fontWeight:600,color:'#1E293B'}}>{row.name}</td>
+                <td style={{padding:'10px 8px',textAlign:'right'}}>{row.qty}</td>
+                <td style={{padding:'10px 8px',textAlign:'right'}}>R{parseFloat(row.price).toFixed(2)}</td>
+                <td style={{padding:'10px 8px',textAlign:'right',fontWeight:700,color:row.txStatus==='cash'?'#15803d':'#1E293B'}}>R{parseFloat(row.total).toFixed(2)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:0}}>
+          {cashTotal>0&&(
+            <div style={{display:'flex',justifyContent:'space-between',width:230,padding:'8px 0',borderBottom:'1px solid #E2E8F0'}}>
+              <span style={{fontSize:12,color:'#15803d',fontWeight:700}}>💵 Cash Purchases (paid)</span>
+              <span style={{fontSize:13,fontWeight:700,color:'#15803d'}}>R{cashTotal.toFixed(2)}</span>
+            </div>
+          )}
+          {creditTotal>0&&(
+            <div style={{display:'flex',justifyContent:'space-between',width:230,padding:'8px 0',borderBottom:'1px solid #E2E8F0'}}>
+              <span style={{fontSize:12,color:'#64748B',fontWeight:600}}>💳 Credit Purchases (tab)</span>
+              <span style={{fontSize:13,fontWeight:700}}>R{creditTotal.toFixed(2)}</span>
+            </div>
+          )}
+          <div style={{display:'flex',justifyContent:'space-between',width:230,padding:'8px 0',borderBottom:'1px solid #E2E8F0'}}>
+            <span style={{fontSize:12,color:'#64748B',fontWeight:600}}>Total Purchases</span>
+            <span style={{fontSize:13,fontWeight:700}}>R{subtotal.toFixed(2)}</span>
+          </div>
+          {balanceDue>0?(
+            <div style={{display:'flex',justifyContent:'space-between',width:230,padding:'12px 14px',background:'#FEF3C7',borderRadius:8,marginTop:8}}>
+              <span style={{fontSize:14,fontWeight:900,color:'#92400e'}}>Balance Due (credit)</span>
+              <span style={{fontSize:15,fontWeight:900,color:'#92400e'}}>R{balanceDue.toFixed(2)}</span>
+            </div>
+          ):(
+            <div style={{display:'flex',justifyContent:'space-between',width:230,padding:'12px 14px',background:'#F0FDF4',borderRadius:8,marginTop:8}}>
+              <span style={{fontSize:14,fontWeight:900,color:'#15803d'}}>✓ All Paid Up</span>
+              <span style={{fontSize:13,fontWeight:700,color:'#15803d'}}>No balance due</span>
+            </div>
+          )}
+        </div>
+        <div style={{marginTop:28,paddingTop:14,borderTop:'1px solid #E2E8F0',textAlign:'center',color:'#94A3B8',fontSize:12}}>
+          Thank you for your business!
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CustomersScreen({data,setData,t,lang}){
+  const [selected,setSelected]=React.useState(null);
+  const [addModal,setAddModal]=React.useState(false);
+  const [editModal,setEditModal]=React.useState(null);
+  const [form,setForm]=React.useState({name:'',phone:''});
+  const [toast,setToast]=React.useState('');
+  const [settleMethodModal,setSettleMethodModal]=React.useState(false);
+  const [delTxConfirm,setDelTxConfirm]=React.useState(null);
+  const [delCustConfirm,setDelCustConfirm]=React.useState(false);
+  const [delPinModal,setDelPinModal]=React.useState(false);
+  const [invoiceCustomer,setInvoiceCustomer]=React.useState(null);
+
+  function saveCustomer(){
+    if(!form.name.trim())return;
+    if(editModal){
+      const nd={...data,customers:data.customers.map(c=>c.id===editModal.id?{...c,name:form.name.trim(),phone:form.phone.trim()}:c)};
+      setData(nd);saveData(nd);setEditModal(null);
+    } else {
+      const c={id:uid(),name:form.name.trim(),phone:form.phone.trim(),balance:0};
+      const nd={...data,customers:[...data.customers,c]};
+      setData(nd);saveData(nd);setAddModal(false);
+    }
+    setForm({name:'',phone:''});
+  }
+
+  function openEdit(c){setForm({name:c.name,phone:c.phone});setEditModal(c);}
+
+  function settleAll(id,method){
+    const now=new Date().toISOString();
+    const nd={...data,
+      transactions:data.transactions.map(tx=>tx.customerId===id&&tx.status==='open'?{...tx,status:'settled',settledAt:now,settledMethod:method}:tx),
+      customers:data.customers.map(c=>c.id===id?{...c,balance:0}:c)
+    };
+    setData(nd);saveData(nd);setSettleMethodModal(false);setToast(t.settled+'!');
+  }
+
+  function deleteTx(txId,amount,custId){
+    const nd={...data,
+      transactions:data.transactions.filter(tx=>tx.id!==txId),
+      customers:data.customers.map(c=>c.id===custId?{...c,balance:Math.max(0,parseFloat((c.balance-amount).toFixed(2)))}:c)
+    };
+    setData(nd);saveData(nd);setDelTxConfirm(null);
+  }
+
+  function deleteCustomer(id){
+    const nd={...data,customers:data.customers.filter(c=>c.id!==id),transactions:data.transactions.filter(tx=>tx.customerId!==id)};
+    setData(nd);saveData(nd);setDelCustConfirm(false);setSelected(null);
+  }
+
+  if(selected){
+    const cust=data.customers.find(c=>c.id===selected.id)||selected;
+    const txs=data.transactions.filter(tx=>tx.customerId===cust.id).sort((a,b)=>new Date(b.date)-new Date(a.date));
+    const openBalance=txs.filter(tx=>tx.status==='open').reduce((s,tx)=>s+tx.total,0);
+    return(
+      <div style={{height:'100%',display:'flex',flexDirection:'column',background:C.bg,position:'relative'}}>
+        {toast&&<Toast msg={toast} onDone={()=>setToast('')}/>}
+        {settleMethodModal&&(
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:4000,display:'flex',flexDirection:'column',justifyContent:'flex-end'}} onClick={()=>setSettleMethodModal(false)}>
+            <div onClick={e=>e.stopPropagation()} style={{background:'#fff',borderRadius:'20px 20px 0 0',padding:'24px 20px 36px'}}>
+              <div style={{fontWeight:900,fontSize:17,color:C.navyDark,marginBottom:4}}>How is this being settled?</div>
+              <div style={{fontSize:13,color:C.muted,marginBottom:20}}>{fmt(openBalance)} outstanding for {cust.name}</div>
+              <button onClick={()=>settleAll(cust.id,'cash')}
+                style={{width:'100%',background:'#F0FDF4',border:'2px solid #22c55e',borderRadius:14,padding:'14px 16px',marginBottom:10,cursor:'pointer',display:'flex',alignItems:'center',gap:12,textAlign:'left'}}>
+                <span style={{fontSize:26}}>💵</span>
+                <div><div style={{fontWeight:800,fontSize:15,color:'#15803d'}}>Cash Payment</div><div style={{fontSize:12,color:C.muted}}>Customer paid in cash</div></div>
+              </button>
+              <button onClick={()=>settleAll(cust.id,'salary')}
+                style={{width:'100%',background:'#EFF6FF',border:'2px solid #3b82f6',borderRadius:14,padding:'14px 16px',cursor:'pointer',display:'flex',alignItems:'center',gap:12,textAlign:'left'}}>
+                <span style={{fontSize:26}}>💼</span>
+                <div><div style={{fontWeight:800,fontSize:15,color:'#1d4ed8'}}>Salary Deduction</div><div style={{fontSize:12,color:C.muted}}>Deducted from monthly pay</div></div>
+              </button>
+            </div>
+          </div>
+        )}
+        {delTxConfirm&&<ConfirmDialog title={t.deleteTransaction} message={`${fmtDate(delTxConfirm.date)} — ${fmt(delTxConfirm.total)}`} onConfirm={()=>deleteTx(delTxConfirm.id,delTxConfirm.total,cust.id)} onCancel={()=>setDelTxConfirm(null)} confirmLabel={t.deleteTransaction}/>}
+        {invoiceCustomer&&<InvoiceView customer={invoiceCustomer} data={data} onClose={()=>setInvoiceCustomer(null)}/>}
+        {delPinModal&&<PINConfirmModal title="Confirm Deletion" message={`Enter your PIN to permanently delete ${cust.name} and all their transactions`} onConfirm={()=>{setDelPinModal(false);deleteCustomer(cust.id);}} onCancel={()=>setDelPinModal(false)}/>}
+        {delCustConfirm&&<ConfirmDialog title={t.deleteCustomer} message={t.deleteCustomerConfirm} onConfirm={()=>deleteCustomer(cust.id)} onCancel={()=>setDelCustConfirm(false)} confirmLabel={t.deleteCustomer}/>}
+
+        <div style={{background:C.navy,padding:'10px 14px 16px',flexShrink:0}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+            <button onClick={()=>setSelected(null)} style={{background:'rgba(255,255,255,0.15)',border:'none',color:'#fff',borderRadius:8,padding:'7px 14px',fontSize:12,fontWeight:700,cursor:'pointer'}}>‹ {t.back}</button>
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={()=>setInvoiceCustomer(cust)} style={{background:C.gold,border:'none',color:C.navyDark,borderRadius:8,padding:'7px 14px',fontSize:12,fontWeight:700,cursor:'pointer'}}>🧾 Invoice</button>
+              <button onClick={()=>openEdit(cust)} style={{background:'rgba(255,255,255,0.15)',border:'none',color:'#fff',borderRadius:8,padding:'7px 14px',fontSize:12,fontWeight:700,cursor:'pointer'}}>✏️ {t.edit}</button>
+            </div>
+          </div>
+          <div style={{color:'rgba(255,255,255,0.6)',fontSize:12}}>{cust.phone||'No phone'}</div>
+          <div style={{color:'#fff',fontSize:22,fontWeight:900}}>{cust.name}</div>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-end',marginTop:10}}>
+            <div>
+              <div style={{color:'rgba(255,255,255,0.6)',fontSize:11,fontWeight:600,textTransform:'uppercase'}}>{t.outstanding}</div>
+              <div style={{color:openBalance>0?C.gold:'#4ADE80',fontSize:30,fontWeight:900}}>{fmt(openBalance)}</div>
+            </div>
+            {openBalance>0&&<Btn onClick={()=>setSettleMethodModal(true)} variant='gold' small>✓ {t.settle}</Btn>}
+          </div>
+        </div>
+
+        <div style={{flex:1,overflow:'auto',padding:'12px 14px'}}>
+          <div style={{fontSize:12,fontWeight:800,color:C.muted,textTransform:'uppercase',letterSpacing:.5,marginBottom:8}}>{t.creditLog} ({txs.length})</div>
+          {txs.length===0&&<div style={{color:C.muted,textAlign:'center',padding:'30px 0',fontSize:14}}>{t.noTransactions}</div>}
+          {txs.map(tx=>(
+            <Card key={tx.id}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
+                <div>
+                  <div style={{fontSize:13,fontWeight:700,color:C.text}}>{fmtDate(tx.date)}</div>
+                  <Badge label={tx.status==='open'?t.outstanding:tx.status==='cash'?'💵 Cash Paid':t.settled} color={tx.status==='open'?C.amber:tx.status==='cash'?C.navyLight:C.success}/>
+                </div>
+                <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                  <div style={{fontWeight:900,fontSize:17,color:C.navy}}>{fmt(tx.total)}</div>
+                  <button onClick={()=>setDelTxConfirm(tx)}
+                    style={{background:C.dangerLight,border:`1px solid ${C.danger}`,color:C.danger,borderRadius:8,padding:'5px 10px',fontSize:11,cursor:'pointer',fontWeight:700}}>
+                    🗑️
+                  </button>
+                </div>
+              </div>
+              <div style={{background:C.bg,borderRadius:8,padding:'8px 10px'}}>
+                {tx.items.map((it,i)=>(
+                  <div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:12,color:C.muted,marginBottom:i<tx.items.length-1?4:0}}>
+                    <span>{it.name} ×{it.qty}</span><span style={{fontWeight:600}}>{fmt(it.total)}</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          ))}
+        </div>
+
+        <div style={{padding:'10px 14px 12px',borderTop:`1px solid ${C.border}`,background:C.white,flexShrink:0}}>
+          <Btn onClick={()=>{const p=localStorage.getItem('millbank_pin');if(p)setDelPinModal(true);else setDelCustConfirm(true);}} variant='dangerOutline' style={{width:'100%'}}>🗑️ {t.deleteCustomer}: {cust.name}</Btn>
+        </div>
+
+        {editModal&&(
+          <Modal title={`${t.edit}: ${editModal.name}`} onClose={()=>setEditModal(null)}>
+            <div style={{paddingTop:16}}>
+              <Input label={t.customerName} value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))}/>
+              <Input label={t.phone} value={form.phone} onChange={e=>setForm(f=>({...f,phone:e.target.value}))} type="tel"/>
+              <Btn onClick={saveCustomer} variant='primary' style={{width:'100%'}}>{t.save}</Btn>
+              <div style={{height:10}}/>
+            </div>
+          </Modal>
+        )}
+      </div>
+    );
+  }
+
+  return(
+    <div style={{height:'100%',display:'flex',flexDirection:'column',background:C.bg,position:'relative'}}>
+      {toast&&<Toast msg={toast} onDone={()=>setToast('')}/>}
+      <div style={{padding:'10px 14px 8px',flexShrink:0}}>
+        <Btn onClick={()=>{setForm({name:'',phone:''});setAddModal(true);}} variant='primary' style={{width:'100%'}}>+ {t.addCustomer}</Btn>
+        <div style={{marginTop:6,color:C.muted,fontSize:12,fontWeight:600}}>{lang==='af'?'Tik kliënt om detail te sien':'Tap a customer to see their credit log'}</div>
+      </div>
+      <div style={{flex:1,overflow:'auto',padding:'0 14px'}}>
+        {data.customers.length===0&&<div style={{color:C.muted,textAlign:'center',padding:'40px 0',fontSize:14}}>{t.noCustomers}</div>}
+        {data.customers.map(c=>(
+          <Card key={c.id} onClick={()=>setSelected(c)}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div>
+                <div style={{fontWeight:800,fontSize:15,color:C.text}}>{c.name}</div>
+                <div style={{color:C.muted,fontSize:12,marginTop:1}}>{c.phone}</div>
+                <div style={{marginTop:4}}>
+                  <Badge label={c.balance>0?`${t.outstanding}: ${fmt(c.balance)}`:`✓ ${t.allClear}`} color={c.balance>0?C.amber:C.success}/>
+                </div>
+              </div>
+              <div style={{textAlign:'right'}}>
+                <div style={{fontWeight:900,fontSize:22,color:c.balance>0?C.navy:C.success}}>{fmt(c.balance)}</div>
+                <div style={{color:C.muted,fontSize:11}}>
+                  {data.transactions.filter(tx=>tx.customerId===c.id&&tx.status==='open').length} {lang==='af'?'oop':'open'}
+                </div>
+              </div>
+            </div>
+          </Card>
+        ))}
+        <div style={{height:20}}/>
+      </div>
+      {addModal&&(
+        <Modal title={t.addCustomer} onClose={()=>setAddModal(false)}>
+          <div style={{paddingTop:16}}>
+            <Input label={t.customerName} value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="e.g. John Sithole"/>
+            <Input label={t.phone} value={form.phone} onChange={e=>setForm(f=>({...f,phone:e.target.value}))} placeholder="e.g. 082 123 4567" type="tel"/>
+            <Btn onClick={saveCustomer} variant='primary' style={{width:'100%'}}>{t.save}</Btn>
+            <div style={{height:10}}/>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// REPORTS
+// ─────────────────────────────────────────────────────────────
+function ReportsScreen({data,t,lang}){
+  const curYear=new Date().getFullYear();
+  const[monthIdx,setMonthIdx]=React.useState(new Date().getMonth());
+  const[year,setYear]=React.useState(curYear);
+  const[showAll,setShowAll]=React.useState(false);
+  const[custFilter,setCustFilter]=React.useState('all');
+  const[viewMode,setViewMode]=React.useState('statement');
+  const years=[curYear-1,curYear,curYear+1];
+
+  const filtered=data.transactions.filter(tx=>{
+    const dateOk=showAll||(()=>{const d=new Date(tx.date);return d.getMonth()===monthIdx&&d.getFullYear()===year;})();
+    const custOk=custFilter==='all'||tx.customerId===custFilter;
+    return dateOk&&custOk;
+  });
+
+  // Build product map for cost price lookup
+  const productMap={};
+  data.products.forEach(p=>{productMap[p.id]=p;});
+
+  // Calculate profit & best sellers from filtered transactions
+  let totalProfit=0;
+  const productSales={};
+  filtered.forEach(tx=>{
+    tx.items.forEach(item=>{
+      const prod=productMap[item.productId];
+      const cost=prod?.costPrice||0;
+      const itemProfit=(item.price-cost)*item.qty;
+      totalProfit+=itemProfit;
+      if(!productSales[item.productId])
+        productSales[item.productId]={name:item.name,qty:0,revenue:0,profit:0};
+      productSales[item.productId].qty+=item.qty;
+      productSales[item.productId].revenue+=item.total;
+      productSales[item.productId].profit+=itemProfit;
+    });
+  });
+  const bestSellers=Object.values(productSales).sort((a,b)=>b.qty-a.qty).slice(0,5);
+  const maxQty=bestSellers.length?bestSellers[0].qty:1;
+
+  const byCust=data.customers.map(c=>{
+    const txs=filtered.filter(tx=>tx.customerId===c.id);
+    return{...c,txs,total:txs.reduce((s,tx)=>s+tx.total,0),items:txs.reduce((s,tx)=>s+tx.items.reduce((ss,i)=>ss+i.qty,0),0)};
+  }).filter(c=>c.txs.length>0).sort((a,b)=>b.total-a.total);
+  const grand=byCust.reduce((s,c)=>s+c.total,0);
+  const margin=grand>0?Math.round((totalProfit/grand)*100):0;
+
+  const periodLabel=showAll?t.allMonths:MONTHS[monthIdx]+' '+year;
+
+  // Previous period for comparison
+  const prevMon=monthIdx===0?11:monthIdx-1;
+  const prevYr=monthIdx===0?year-1:year;
+  const prevFiltered=showAll?[]:data.transactions.filter(tx=>{const d=new Date(tx.date);return d.getMonth()===prevMon&&d.getFullYear()===prevYr;});
+  const prevRevenue=prevFiltered.reduce((s,tx)=>s+tx.total,0);
+  let prevProfit=0;prevFiltered.forEach(tx=>{tx.items.forEach(item=>{prevProfit+=(item.price-(productMap[item.productId]?.costPrice||0))*item.qty;});});
+  const revChange=prevRevenue>0?Math.round(((grand-prevRevenue)/prevRevenue)*100):null;
+  const profChange=prevProfit>0?Math.round(((totalProfit-prevProfit)/prevProfit)*100):null;
+  // Slow movers: in-stock products with no sales this period
+  const soldSet=new Set(filtered.flatMap(tx=>tx.items.map(i=>i.productId)));
+  const slowMovers=data.products.filter(p=>typeof p.stock_qty==='number'&&p.stock_qty>0&&!soldSet.has(p.id)).slice(0,5);
+  // Rule-based suggestions
+  const suggestions=[];
+  if(bestSellers.length>0)suggestions.push({icon:'🔥',text:`${bestSellers[0].name} is your top seller — consider ordering more stock`});
+  Object.entries(productSales).forEach(([id,ps])=>{
+    const prod=productMap[id];if(prod&&prod.costPrice&&ps.qty>=2&&ps.revenue>0){
+      const m=Math.round(((ps.revenue-ps.qty*(prod.costPrice||0))/ps.revenue)*100);
+      if(m<15)suggestions.push({icon:'💡',text:`${ps.name} has a thin margin (${m}%) — try raising the price slightly`});}
+  });
+  if(slowMovers.length>0)suggestions.push({icon:'📦',text:`${slowMovers[0].name} is in stock but hasn't sold this period — try a special or bundle`});
+  if(revChange!==null&&revChange>0)suggestions.push({icon:'📈',text:`Revenue is up ${revChange}% vs last month — great momentum!`});
+  if(revChange!==null&&revChange<-10)suggestions.push({icon:'⚠️',text:`Revenue is down ${Math.abs(revChange)}% vs last month — consider running a promotion`});
+
+  return(
+    <div style={{height:'100%',overflow:'auto',background:C.bg}}>
+      {/* Period + customer filters */}
+      <div style={{padding:'8px 14px',background:C.white,borderBottom:`1px solid ${C.border}`}}>
+        <div style={{display:'flex',gap:6,marginBottom:8}}>
+          {[['statement','📋 Statement'],['analytics','📊 Analytics']].map(([m,lbl])=>(
+            <button key={m} onClick={()=>setViewMode(m)}
+              style={{flex:1,background:viewMode===m?C.navy:'transparent',color:viewMode===m?'#fff':C.muted,
+                border:`1.5px solid ${viewMode===m?C.navy:C.border}`,borderRadius:10,padding:'8px',fontSize:12,fontWeight:700,cursor:'pointer'}}>
+              {lbl}
+            </button>
+          ))}
+        </div>
+        <div style={{display:'flex',gap:8,marginBottom:6}}>
+          <select value={showAll?'all':monthIdx} onChange={e=>{if(e.target.value==='all'){setShowAll(true);}else{setShowAll(false);setMonthIdx(Number(e.target.value));}}}
+            style={{flex:1,background:C.bg,border:`1.5px solid ${C.border}`,borderRadius:10,padding:'10px',fontSize:13,color:C.text,outline:'none'}}>
+            <option value="all">{t.allMonths}</option>
+            {MONTHS.map((m,i)=><option key={i} value={i}>{m.slice(0,3)}</option>)}
+          </select>
+          <select value={year} onChange={e=>setYear(Number(e.target.value))}
+            style={{background:C.bg,border:`1.5px solid ${C.border}`,borderRadius:10,padding:'10px',fontSize:13,color:C.text,outline:'none'}}>
+            {years.map(y=><option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
+        <select value={custFilter} onChange={e=>setCustFilter(e.target.value)}
+          style={{width:'100%',background:C.bg,border:`1.5px solid ${C.border}`,borderRadius:10,padding:'10px',fontSize:13,color:C.text,outline:'none'}}>
+          <option value="all">👥 All Customers</option>
+          {data.customers.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+      </div>
+
+      {viewMode==='analytics'&&(
+      <div style={{padding:'12px 14px 24px'}}>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
+          <div style={{background:`linear-gradient(135deg,${C.navyDark},${C.navy})`,borderRadius:14,padding:'14px 16px'}}>
+            <div style={{color:'rgba(255,255,255,0.55)',fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:.5}}>Revenue</div>
+            <div style={{color:'#fff',fontSize:22,fontWeight:900,marginTop:4,lineHeight:1}}>{fmt(grand)}</div>
+            {revChange!==null&&(
+              <div style={{marginTop:6,display:'flex',alignItems:'center',gap:4}}>
+                <span style={{fontSize:12,fontWeight:800,color:revChange>=0?'#4ade80':'#f87171'}}>{revChange>=0?'▲':'▼'} {Math.abs(revChange)}%</span>
+                <span style={{fontSize:10,color:'rgba(255,255,255,0.45)'}}>vs last month</span>
+              </div>
+            )}
+            <div style={{color:'rgba(255,255,255,0.45)',fontSize:10,marginTop:4}}>{filtered.length} sales · {periodLabel}</div>
+          </div>
+          <div style={{background:'linear-gradient(135deg,#14532d,#16a34a)',borderRadius:14,padding:'14px 16px'}}>
+            <div style={{color:'rgba(255,255,255,0.55)',fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:.5}}>Profit</div>
+            <div style={{color:'#fff',fontSize:22,fontWeight:900,marginTop:4,lineHeight:1}}>{fmt(totalProfit)}</div>
+            <div style={{color:'rgba(255,255,255,0.8)',fontSize:11,fontWeight:700,marginTop:6}}>{margin}% margin</div>
+            {profChange!==null&&<span style={{fontSize:10,color:profChange>=0?'#4ade80':'#f87171',fontWeight:700}}>{profChange>=0?'▲':'▼'} {Math.abs(profChange)}% vs last</span>}
+          </div>
+        </div>
+        {bestSellers.length>0&&(
+          <div style={{background:C.white,borderRadius:14,padding:'14px 16px',marginBottom:12,border:`1px solid ${C.border}`}}>
+            <div style={{fontWeight:800,fontSize:14,color:C.navy,marginBottom:12}}>🔥 Top Sellers — {periodLabel}</div>
+            {bestSellers.map((p,i)=>{
+              const pid=Object.keys(productSales).find(k=>productSales[k].name===p.name);
+              const prod=productMap[pid];
+              const mPct=p.revenue>0&&prod?.costPrice?Math.round(((p.revenue-p.qty*(prod.costPrice||0))/p.revenue)*100):null;
+              return(
+              <div key={p.name} style={{marginBottom:i<bestSellers.length-1?12:0}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:3}}>
+                  <div style={{display:'flex',alignItems:'center',gap:6,flex:1,minWidth:0}}>
+                    <span style={{fontSize:14,flexShrink:0}}>{i===0?'🥇':i===1?'🥈':i===2?'🥉':'  '}</span>
+                    <span style={{fontSize:13,fontWeight:700,color:C.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.name}</span>
+                  </div>
+                  <div style={{display:'flex',gap:6,alignItems:'center',flexShrink:0,marginLeft:8}}>
+                    {mPct!==null&&<span style={{fontSize:10,fontWeight:700,background:mPct>=20?'#dcfce7':'#fef9c3',color:mPct>=20?'#15803d':'#854d0e',borderRadius:4,padding:'1px 5px'}}>{mPct}%</span>}
+                    <span style={{fontSize:12,fontWeight:700,color:C.muted}}>{p.qty} sold</span>
+                  </div>
+                </div>
+                <div style={{background:C.bg,borderRadius:4,height:6,marginBottom:2}}>
+                  <div style={{background:i===0?C.gold:'#93c5fd',borderRadius:4,height:6,width:`${Math.round((p.qty/maxQty)*100)}%`}}/>
+                </div>
+                <div style={{fontSize:10,color:C.muted}}>{fmt(p.revenue)} revenue · <span style={{color:'#16a34a',fontWeight:700}}>{fmt(p.profit)} profit</span></div>
+              </div>
+              );
+            })}
+          </div>
+        )}
+        {slowMovers.length>0&&(
+          <div style={{background:C.white,borderRadius:14,padding:'14px 16px',marginBottom:12,border:`1px solid ${C.border}`}}>
+            <div style={{fontWeight:800,fontSize:14,color:C.amber,marginBottom:10}}>📦 Slow Movers — Not Sold This Period</div>
+            {slowMovers.map((p,i)=>(
+              <div key={p.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 0',borderBottom:i<slowMovers.length-1?`1px solid ${C.border}`:'none'}}>
+                <div>
+                  <div style={{fontSize:13,fontWeight:700,color:C.text}}>{p.name}</div>
+                  <div style={{fontSize:11,color:C.muted}}>{p.stock_qty} in stock</div>
+                </div>
+                <div style={{textAlign:'right'}}>
+                  <div style={{fontSize:12,fontWeight:700,color:C.navy}}>{fmt(p.sellPrice)}</div>
+                  {p.costPrice&&<div style={{fontSize:10,color:C.muted}}>{Math.round(((p.sellPrice-p.costPrice)/p.sellPrice)*100)}% margin</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {suggestions.length>0&&(
+          <div style={{background:C.white,borderRadius:14,padding:'14px 16px',marginBottom:12,border:`1px solid ${C.border}`}}>
+            <div style={{fontWeight:800,fontSize:14,color:C.navyDark,marginBottom:10}}>💡 Suggestions for Next Month</div>
+            {suggestions.map((s,i)=>(
+              <div key={i} style={{display:'flex',gap:10,padding:'9px 0',borderBottom:i<suggestions.length-1?`1px solid ${C.border}`:'none'}}>
+                <span style={{fontSize:18,flexShrink:0}}>{s.icon}</span>
+                <span style={{fontSize:12,color:C.text,lineHeight:1.5}}>{s.text}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {grand===0&&<div style={{color:C.muted,textAlign:'center',padding:'40px 0',fontSize:14}}>{t.noTransactions}</div>}
+      </div>
+      )}
+      {viewMode==='statement'&&(
+      <div style={{padding:'12px 14px 0'}}>
+
+        {/* Revenue + Profit cards */}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
+          <div style={{background:`linear-gradient(135deg,${C.navyDark},${C.navy})`,borderRadius:14,padding:'14px 16px'}}>
+            <div style={{color:'rgba(255,255,255,0.55)',fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:.5}}>Revenue</div>
+            <div style={{color:'#fff',fontSize:22,fontWeight:900,marginTop:4,lineHeight:1}}>{fmt(grand)}</div>
+            <div style={{color:C.gold,fontSize:11,fontWeight:700,marginTop:6}}>{byCust.length} customers</div>
+            <div style={{color:'rgba(255,255,255,0.45)',fontSize:10,marginTop:1}}>{filtered.length} sales</div>
+          </div>
+          <div style={{background:'linear-gradient(135deg,#14532d,#16a34a)',borderRadius:14,padding:'14px 16px'}}>
+            <div style={{color:'rgba(255,255,255,0.55)',fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:.5}}>Profit</div>
+            <div style={{color:'#fff',fontSize:22,fontWeight:900,marginTop:4,lineHeight:1}}>{fmt(totalProfit)}</div>
+            <div style={{color:'rgba(255,255,255,0.8)',fontSize:11,fontWeight:700,marginTop:6}}>{margin}% margin</div>
+            <div style={{color:'rgba(255,255,255,0.45)',fontSize:10,marginTop:1}}>{periodLabel}</div>
+          </div>
+        </div>
+
+        {/* Best Sellers */}
+        {bestSellers.length>0&&(
+          <div style={{background:C.white,borderRadius:14,padding:'14px 16px',marginBottom:12,border:`1px solid ${C.border}`}}>
+            <div style={{fontWeight:800,fontSize:14,color:C.navy,marginBottom:12}}>🔥 Best Sellers</div>
+            {bestSellers.map((p,i)=>(
+              <div key={p.name} style={{marginBottom:i<bestSellers.length-1?12:0}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
+                  <div style={{display:'flex',alignItems:'center',gap:6,flex:1,minWidth:0}}>
+                    <span style={{fontSize:14,flexShrink:0}}>{i===0?'🥇':i===1?'🥈':i===2?'🥉':'  '}</span>
+                    <span style={{fontSize:13,fontWeight:700,color:C.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.name}</span>
+                  </div>
+                  <span style={{fontSize:12,fontWeight:700,color:C.muted,flexShrink:0,marginLeft:8}}>{p.qty} sold</span>
+                </div>
+                <div style={{background:C.bg,borderRadius:4,height:7,marginBottom:3}}>
+                  <div style={{background:i===0?C.gold:'#93c5fd',borderRadius:4,height:7,width:`${Math.round((p.qty/maxQty)*100)}%`,transition:'width .4s ease'}}/>
+                </div>
+                <div style={{fontSize:11,color:C.muted}}>{fmt(p.revenue)} revenue · <span style={{color:'#16a34a',fontWeight:700}}>{fmt(p.profit)} profit</span></div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Customer breakdown */}
+        {filtered.length===0&&(
+          <div style={{color:C.muted,textAlign:'center',padding:'30px 0',fontSize:14}}>{t.noTransactions}</div>
+        )}
+        {byCust.length>0&&(
+          <div style={{fontWeight:800,fontSize:13,color:C.muted,textTransform:'uppercase',letterSpacing:.5,marginBottom:8}}>By Customer</div>
+        )}
+        {byCust.map(c=>{
+          const allCustTxs=data.transactions.filter(tx=>tx.customerId===c.id);
+          const grp={};
+          allCustTxs.filter(tx=>tx.status==='settled'&&tx.settledAt).forEach(tx=>{
+            const d=new Date(tx.settledAt);
+            const inP=showAll||(d.getMonth()===monthIdx&&d.getFullYear()===year);
+            if(inP){const k=tx.settledAt.slice(0,10)+'_'+(tx.settledMethod||'cash');
+              if(!grp[k])grp[k]={date:tx.settledAt,method:tx.settledMethod||'cash',amount:0};
+              grp[k].amount+=tx.total;}
+          });
+          const credits=Object.values(grp).sort((a,b)=>new Date(a.date)-new Date(b.date));
+          const totalCredit=credits.reduce((s,cr)=>s+cr.amount,0);
+          const ledger=[
+            ...c.txs.map(tx=>({type:'debit',txStatus:tx.status,date:tx.date,items:tx.items,amount:tx.total})),
+            ...credits.map(cr=>({type:'credit',date:cr.date,method:cr.method,amount:cr.amount}))
+          ].sort((a,b)=>new Date(a.date)-new Date(b.date));
+          return(
+          <Card key={c.id} style={{marginBottom:10}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
+              <div>
+                <div style={{fontWeight:800,fontSize:15}}>{c.name}</div>
+                <div style={{color:C.muted,fontSize:12}}>{c.txs.length} transactions · {c.items} items</div>
+              </div>
+              <div style={{textAlign:'right'}}>
+                <div style={{fontWeight:900,fontSize:19,color:C.navy}}>{fmt(c.total)}</div>
+                {totalCredit>0&&<div style={{fontSize:11,fontWeight:700,color:C.success}}>−{fmt(totalCredit)} settled</div>}
+              </div>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr auto auto',gap:4,padding:'5px 8px',background:C.bg,borderRadius:6,marginBottom:4,fontSize:10,fontWeight:700,color:C.muted,textTransform:'uppercase',letterSpacing:.4}}>
+              <span>Date / Description</span><span style={{textAlign:'right',minWidth:60}}>Debit</span><span style={{textAlign:'right',minWidth:60}}>Credit</span>
+            </div>
+            {ledger.map((row,i)=>(
+              <div key={i} style={{display:'grid',gridTemplateColumns:'1fr auto auto',gap:4,padding:'7px 8px',borderBottom:`1px solid ${C.border}`,alignItems:'start',background:row.type==='credit'?'#F0FDF4':row.txStatus==='cash'?'#EFF6FF':'transparent'}}>
+                <div>
+                  <div style={{fontSize:12,fontWeight:700,color:row.type==='credit'?'#15803d':row.txStatus==='cash'?C.navyLight:C.text}}>{fmtDate(row.date)}</div>
+                  {row.type==='debit'
+                    ?<div style={{fontSize:10,color:row.txStatus==='cash'?C.navyLight:C.muted}}>{row.txStatus==='cash'?'💵 Cash Paid · ':''}{row.items.map(it=>it.name+' ×'+it.qty).join(', ')}</div>
+                    :<div style={{fontSize:10,fontWeight:700,color:'#15803d'}}>{row.method==='salary'?'💼 Salary Deduction':'💵 Cash Payment'}</div>
+                  }
+                </div>
+                <span style={{fontSize:12,fontWeight:800,color:row.txStatus==='cash'?C.navyLight:C.navy,textAlign:'right',minWidth:60}}>{row.type==='debit'?fmt(row.amount):''}</span>
+                <span style={{fontSize:12,fontWeight:800,color:'#15803d',textAlign:'right',minWidth:60}}>{row.type==='credit'?fmt(row.amount):''}</span>
+              </div>
+            ))}
+            <div style={{display:'grid',gridTemplateColumns:'1fr auto auto',gap:4,padding:'8px 8px',marginTop:4,background:C.goldLight,borderRadius:8}}>
+              <span style={{fontSize:12,fontWeight:800}}>Total</span>
+              <span style={{fontSize:13,fontWeight:900,color:C.navy,textAlign:'right',minWidth:60}}>{fmt(c.total)}</span>
+              <span style={{fontSize:13,fontWeight:900,color:'#15803d',textAlign:'right',minWidth:60}}>{totalCredit>0?fmt(totalCredit):'—'}</span>
+            </div>
+          </Card>
+          );
+        })}
+        <div style={{height:30}}/>
+      </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// CLOUD SYNC SETTINGS SECTION
+// ─────────────────────────────────────────────────────────────
+function CloudSyncSection({data}){
+  const cfg=getSBConfig();
+  const[url,setUrl]=React.useState(cfg.url);
+  const[key,setKey]=React.useState(cfg.key);
+  const[shopId,setShopId]=React.useState(cfg.shopId);
+  const[status,setStatus]=React.useState('idle');
+  const[show,setShow]=React.useState(!cfg.url);
+  const isConfigured=!!(cfg.url&&cfg.key&&cfg.shopId);
+
+  async function saveAndTest(){
+    setStatus('saving');
+    localStorage.setItem('millbank_sb_url',url.trim());
+    localStorage.setItem('millbank_sb_key',key.trim());
+    localStorage.setItem('millbank_shop_id',shopId.trim());
+    try{await saveToCloud(data);setStatus('ok');setTimeout(()=>setShow(false),1500);}
+    catch(e){setStatus('fail');}
+  }
+  function disconnect(){
+    ['millbank_sb_url','millbank_sb_key','millbank_shop_id'].forEach(k=>localStorage.removeItem(k));
+    setUrl('');setKey('');setShopId('');setStatus('idle');setShow(true);
+  }
+
+  return(
+    <div style={{borderTop:`1px solid ${C.border}`,paddingTop:14,marginBottom:14}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+        <div style={{fontSize:12,fontWeight:700,color:C.muted,textTransform:'uppercase',letterSpacing:.5}}>☁️ Cloud Sync</div>
+        <span style={{fontSize:12,fontWeight:700,color:isConfigured?C.success:'#999'}}>{isConfigured?'● Connected':'○ Off'}</span>
+      </div>
+      {isConfigured&&!show&&(
+        <div style={{background:C.bg,borderRadius:10,padding:'10px 14px',marginBottom:8,fontSize:12,color:C.muted}}>
+          Shop: <strong style={{color:C.text}}>{cfg.shopId}</strong> · Syncing automatically
+        </div>
+      )}
+      <Btn onClick={()=>setShow(s=>!s)} variant='outline' style={{width:'100%',marginBottom:show?10:0}}>
+        {show?'▲ Hide':(isConfigured?'✏️ Edit Sync Settings':'⚙️ Set Up Cloud Sync')}
+      </Btn>
+      {show&&(
+        <div>
+          <div style={{fontSize:11,lineHeight:1.6,background:'#EFF6FF',borderRadius:8,padding:'10px',border:'1px solid #BFDBFE',marginBottom:10,color:'#1D4ED8'}}>
+            💡 Go to <strong>supabase.com</strong> → your project → <strong>Settings → API</strong><br/>Copy <em>Project URL</em> and <em>anon public</em> key. Choose any Shop ID — all devices must use the same one.
+          </div>
+          {[
+            {label:'Project URL',val:url,set:setUrl,ph:'https://xxxx.supabase.co'},
+            {label:'Anon Key',val:key,set:setKey,ph:'eyJhbGciOi...'},
+            {label:'Shop ID',val:shopId,set:setShopId,ph:'my-spaza-2024'},
+          ].map(({label,val,set,ph})=>(
+            <div key={label} style={{marginBottom:8}}>
+              <div style={{fontSize:11,fontWeight:700,color:C.muted,marginBottom:3}}>{label}</div>
+              <input value={val} onChange={e=>set(e.target.value)} placeholder={ph}
+                style={{width:'100%',border:`1.5px solid ${C.border}`,borderRadius:8,padding:'9px 12px',fontSize:12,outline:'none',background:C.white,color:C.text}}/>
+            </div>
+          ))}
+          <Btn onClick={saveAndTest} variant='primary' style={{width:'100%',marginTop:4}}>
+            {status==='saving'?'Connecting...'
+             :status==='ok'?'✅ Connected!'
+             :status==='fail'?'❌ Failed — check details'
+             :'💾 Save & Connect'}
+          </Btn>
+          {isConfigured&&(
+            <Btn onClick={disconnect} variant='dangerOutline' style={{width:'100%',marginTop:8}}>
+              Disconnect Cloud Sync
+            </Btn>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// SETTINGS MODAL
+// ─────────────────────────────────────────────────────────────
+function SettingsModal({data,setData,t,lang,onClose,onBackup,onChangePIN}){
+  const hasPin=!!localStorage.getItem('millbank_pin');
+  const lastBackup=localStorage.getItem('millbank_last_backup');
+  const lastStr=lastBackup?new Date(parseInt(lastBackup)).toLocaleDateString('en-ZA',{day:'2-digit',month:'short',year:'numeric'}):'Never';
+  const[shopName,setShopName]=React.useState(()=>localStorage.getItem('millbank_shop_name')||'');
+  const[shopAddr,setShopAddr]=React.useState(()=>localStorage.getItem('millbank_shop_address')||'');
+  const[shopEmail,setShopEmail]=React.useState(()=>localStorage.getItem('millbank_shop_email')||'');
+  const[shopSaved,setShopSaved]=React.useState(false);
+  function saveShopInfo(){
+    localStorage.setItem('millbank_shop_name',shopName.trim());
+    localStorage.setItem('millbank_shop_address',shopAddr.trim());
+    localStorage.setItem('millbank_shop_email',shopEmail.trim());
+    setShopSaved(true);setTimeout(()=>setShopSaved(false),2000);
+  }
+
+  function exportData(){
+    const json=JSON.stringify(data,null,2);
+    const blob=new Blob([json],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;a.download=`millbank-backup-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();URL.revokeObjectURL(url);
+    markBackup();
+    if(onBackup)onBackup();
+  }
+
+  function importData(e){
+    const file=e.target.files[0];if(!file)return;
+    if(file.size>10*1024*1024){alert('❌ File too large');return;}
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      try{
+        const d=JSON.parse(ev.target.result);
+        if(!d?.products||!d?.customers||!d?.transactions)throw new Error('Invalid structure');
+        setData(d);saveData(d);alert('✓ Data restored!');onClose();
+      }catch(err){alert('❌ Invalid backup file — could not restore');}
+    };
+    reader.onerror=()=>alert('❌ Could not read file');
+    reader.readAsText(file);
+  }
+
+  return(
+    <Modal title={`⚙️ ${t.settings}`} onClose={onClose}>
+      <div style={{paddingTop:16}}>
+        {/* Shop info for invoices */}
+        <div style={{background:C.bg,borderRadius:12,padding:'14px',marginBottom:14,border:`1px solid ${C.border}`}}>
+          <div style={{fontSize:12,fontWeight:800,color:C.muted,textTransform:'uppercase',letterSpacing:.5,marginBottom:10}}>🏪 Shop Info (Invoices)</div>
+          {[
+            {label:'Shop Name',val:shopName,set:setShopName,ph:'e.g. Millbank Shop'},
+            {label:'Address',val:shopAddr,set:setShopAddr,ph:'e.g. Millbank farm Tosca'},
+            {label:'Email',val:shopEmail,set:setShopEmail,ph:'e.g. shop@email.com'},
+          ].map(({label,val,set,ph})=>(
+            <div key={label} style={{marginBottom:8}}>
+              <div style={{fontSize:11,fontWeight:700,color:C.muted,marginBottom:3}}>{label}</div>
+              <input value={val} onChange={e=>set(e.target.value)} placeholder={ph}
+                style={{width:'100%',border:`1.5px solid ${C.border}`,borderRadius:9,padding:'9px 12px',fontSize:13,outline:'none',background:C.white,color:C.text,fontFamily:'Nunito,sans-serif'}}/>
+            </div>
+          ))}
+          <Btn onClick={saveShopInfo} variant={shopSaved?'success':'primary'} style={{width:'100%',marginTop:4}}>
+            {shopSaved?'✅ Saved!':'💾 Save Shop Info'}
+          </Btn>
+        </div>
+        {/* Backup status */}
+        <div style={{background:C.bg,borderRadius:10,padding:'12px 14px',marginBottom:12,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <div>
+            <div style={{fontSize:12,fontWeight:700,color:C.muted,textTransform:'uppercase',letterSpacing:.5}}>Last Backup</div>
+            <div style={{fontSize:15,fontWeight:800,color:C.text,marginTop:2}}>{lastStr}</div>
+          </div>
+          <span style={{fontSize:24}}>{lastBackup?'✅':'⚠️'}</span>
+        </div>
+
+        <div style={{fontSize:13,color:C.muted,marginBottom:16,lineHeight:1.6,background:'#FFF8E7',borderRadius:10,padding:'12px',border:`1px solid ${C.gold}`}}>
+          💡 Data is saved in <strong>this browser</strong>. Use <strong>Download Backup</strong> regularly — keep the file somewhere safe.
+        </div>
+
+        <Btn onClick={exportData} variant='primary' style={{width:'100%',marginBottom:10}}>
+          📥 {t.backupData}
+        </Btn>
+
+        <label style={{display:'block',marginBottom:16}}>
+          <div style={{background:C.bg,border:`2px solid ${C.border}`,borderRadius:12,padding:'13px 20px',fontSize:15,fontWeight:700,color:C.text,cursor:'pointer',textAlign:'center'}}>
+            📤 {t.restoreData}
+          </div>
+          <input type="file" accept=".json" onChange={importData} style={{display:'none'}}/>
+        </label>
+
+        {/* Security */}
+        <div style={{borderTop:`1px solid ${C.border}`,paddingTop:14,marginBottom:14}}>
+          <div style={{fontSize:12,fontWeight:700,color:C.muted,textTransform:'uppercase',letterSpacing:.5,marginBottom:10}}>🔒 Security</div>
+          <Btn onClick={onChangePIN} variant='outline' style={{width:'100%',marginBottom:8}}>
+            {hasPin?'🔑 Change PIN':'🔒 Set PIN Lock'}
+          </Btn>
+          {hasPin&&(
+            <Btn onClick={()=>{localStorage.removeItem('millbank_pin');alert('PIN removed.');}} variant='dangerOutline' style={{width:'100%'}}>
+              Remove PIN
+            </Btn>
+          )}
+          <div style={{fontSize:11,color:C.muted,marginTop:8,lineHeight:1.5}}>
+            PIN protects the app from casual access. Data in the browser is encrypted by your device's OS.
+          </div>
+        </div>
+
+        <CloudSyncSection data={data}/>
+
+        {/* Data summary */}
+        <div style={{borderTop:`1px solid ${C.border}`,paddingTop:14}}>
+          <div style={{fontSize:12,fontWeight:700,color:C.muted,textTransform:'uppercase',letterSpacing:.5,marginBottom:8}}>Data Summary</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+            {[
+              {l:lang==='af'?'Produkte':'Products',v:data.products.length},
+              {l:lang==='af'?'Kliente':'Customers',v:data.customers.length},
+              {l:lang==='af'?'Transaksies':'Transactions',v:data.transactions.length},
+              {l:lang==='af'?'Uitstaande':'Outstanding',v:fmt(data.customers.reduce((s,c)=>s+c.balance,0))},
+            ].map(({l,v})=>(
+              <div key={l} style={{background:C.bg,borderRadius:10,padding:'10px 12px'}}>
+                <div style={{fontSize:11,color:C.muted,fontWeight:600}}>{l}</div>
+                <div style={{fontSize:16,fontWeight:800,color:C.navy}}>{v}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{height:10}}/>
+      </div>
+    </Modal>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// APP CONTENT
+// ─────────────────────────────────────────────────────────────
+function AppContent(){
+  const [data,setData]=React.useState(()=>loadData());
+  const [tab,setTab]=React.useState('home');
+  const [lang,setLang]=React.useState(()=>loadData().lang||'en');
+  const [showSettings,setShowSettings]=React.useState(false);
+  const [lastBackup,setLastBackup]=React.useState(()=>localStorage.getItem('millbank_last_backup'));
+  const [cloudStatus,setCloudStatus]=React.useState('unknown'); // 'unknown'|'ok'|'fail'
+
+  const hasPin=!!localStorage.getItem('millbank_pin');
+  const [unlocked,setUnlocked]=React.useState(!hasPin);
+
+  // Listen for cloud sync success/failure events dispatched by saveData()
+  React.useEffect(()=>{
+    const onOk=()=>setCloudStatus('ok');
+    const onFail=()=>setCloudStatus('fail');
+    window.addEventListener('millbank_cloud_ok',onOk);
+    window.addEventListener('millbank_cloud_fail',onFail);
+    return()=>{
+      window.removeEventListener('millbank_cloud_ok',onOk);
+      window.removeEventListener('millbank_cloud_fail',onFail);
+    };
+  },[]);
+
+  // IDB fallback on first load if localStorage was empty
+  React.useEffect(()=>{
+    if(!localStorage.getItem('millbank_data')){
+      IDB.get('millbank_data').then(d=>{
+        if(d&&d.products&&d.customers){setData(d);saveData(d);}
+      });
+    }
+  },[]);
+
+  // Live sync from dashboard
+  React.useEffect(()=>{
+    let ch;
+    try{
+      ch=new BroadcastChannel('millbank_sync');
+      ch.onmessage=e=>{if(e.data?.type==='update'&&e.data?.data)setData(e.data.data);};
+    }catch(e){}
+    return()=>{try{if(ch)ch.close();}catch(e){}};
+  },[]);
+
+  // Cloud sync — load on mount, subscribe to real-time changes
+  React.useEffect(()=>{
+    const{shopId}=getSBConfig();
+    if(!shopId)return;
+    function syncNow(){
+      loadFromCloud().then(d=>{
+        if(d?.products&&d?.customers){setData(d);_persist(d);}
+      });
+    }
+    syncNow(); // pull on mount
+    // Pull again every time the user switches back to this tab/app
+    function onVisible(){if(document.visibilityState==='visible')syncNow();}
+    document.addEventListener('visibilitychange',onVisible);
+    const ch=subscribeToCloud(d=>{
+      if(d?.products&&d?.customers){setData(d);_persist(d);}
+    });
+    return()=>{
+      document.removeEventListener('visibilitychange',onVisible);
+      try{if(ch)ch.unsubscribe();}catch(e){}
+    };
+  },[]);
+
+  // Persist language change
+  React.useEffect(()=>{
+    const nd={...data,lang};saveData(nd);
+  },[lang]);
+
+  function handleBackup(){
+    const json=JSON.stringify(data,null,2);
+    const blob=new Blob([json],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;a.download=`millbank-backup-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();URL.revokeObjectURL(url);
+    markBackup();
+    setLastBackup(Date.now().toString());
+  }
+
+  function handleChangePIN(){
+    localStorage.removeItem('millbank_pin');
+    setShowSettings(false);
+    setUnlocked(false);
+  }
+
+  if(!unlocked){
+    return <PINScreen onUnlock={()=>setUnlocked(true)} hasPin={hasPin}/>;
+  }
+
+  const t=T[lang];
+  const titles={home:lang==='af'?'Tuis':'Home',inventory:t.inventory,sale:t.newSale,customers:t.customers,reports:t.report};
+
+  return(
+    <div style={{height:'100%',display:'flex',flexDirection:'column',fontFamily:'Nunito,sans-serif',position:'relative',overflow:'hidden'}}>
+      <AppHeader title={titles[tab]} lang={lang} setLang={setLang}
+        rightSlot={tab==='home'&&(
+          <button onClick={()=>setShowSettings(true)}
+            style={{background:'rgba(255,255,255,0.15)',border:'none',cursor:'pointer',color:'#fff',borderRadius:10,padding:'7px 11px',fontSize:16}}>⚙️</button>
+        )}/>
+      <div style={{flex:1,overflow:'hidden',position:'relative'}}>
+        {tab==='home'&&<HomeScreen data={data} setData={setData} setTab={setTab} t={t} lang={lang} onOpenSettings={()=>setShowSettings(true)} onBackup={handleBackup} lastBackup={lastBackup} cloudStatus={cloudStatus}/>}
+        {tab==='inventory'&&<InventoryScreen data={data} setData={setData} t={t} lang={lang}/>}
+        {tab==='sale'&&<SaleScreen data={data} setData={setData} t={t} lang={lang} setTab={setTab}/>}
+        {tab==='customers'&&<CustomersScreen data={data} setData={setData} t={t} lang={lang}/>}
+        {tab==='reports'&&<ReportsScreen data={data} t={t} lang={lang}/>}
+        {showSettings&&<SettingsModal data={data} setData={setData} t={t} lang={lang} onClose={()=>setShowSettings(false)} onBackup={()=>setLastBackup(Date.now().toString())} onChangePIN={handleChangePIN}/>}
+      </div>
+      <TabBar tab={tab} setTab={setTab} t={t}/>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// APP ROOT — phone detection
+// ─────────────────────────────────────────────────────────────
+function App(){
+  const isStandalone=window.matchMedia('(display-mode:standalone)').matches||window.navigator.standalone===true;
+  const isMobile=window.innerWidth<=430;
+
+  if(isStandalone||isMobile){
+    return(
+      <div className="mobile-app-root" style={{background:'#F2F2F7',fontFamily:'Nunito,sans-serif'}}>
+        <AppContent/>
+      </div>
+    );
+  }
+
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:16,padding:'20px 0 30px'}}>
+      <div style={{color:'rgba(255,255,255,0.4)',fontSize:12,fontWeight:600,textTransform:'uppercase',letterSpacing:1}}>
+        Millbank Shop · Phone App
+      </div>
+      <IOSDevice width={402} height={874}>
+        <AppContent/>
+      </IOSDevice>
+      <a href="Millbank Dashboard.html" target="_blank" rel="noopener noreferrer"
+        style={{color:'rgba(255,255,255,0.6)',fontSize:13,fontWeight:600,textDecoration:'none',
+          background:'rgba(255,255,255,0.08)',borderRadius:10,padding:'8px 22px',border:'1px solid rgba(255,255,255,0.15)'}}>
+        🖥️ Open Computer Dashboard →
+      </a>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

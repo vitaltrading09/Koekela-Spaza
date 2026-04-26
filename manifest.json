@@ -1,8 +1,8 @@
 {
-  "name": "Koekela Spaza Shop",
-  "short_name": "Koekela",
-  "description": "Credit management for spaza shops",
-  "start_url": "./Koekela%20App.html",
+  "name": "Millbank Shop",
+  "short_name": "Millbank",
+  "description": "Credit management for Millbank Shop",
+  "start_url": "./Millbank%20App.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",

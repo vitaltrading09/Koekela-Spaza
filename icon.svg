@@ -6,5 +6,5 @@
   <circle cx="232" cy="320" r="18" fill="#E8A020"/>
   <circle cx="328" cy="320" r="18" fill="#E8A020"/>
   <!-- K letter -->
-  <text x="256" y="480" text-anchor="middle" font-size="72" font-weight="900" font-family="Arial Black,Arial,sans-serif" fill="rgba(255,255,255,0.4)">KOEKELA</text>
+  <text x="256" y="480" text-anchor="middle" font-size="72" font-weight="900" font-family="Arial Black,Arial,sans-serif" fill="rgba(255,255,255,0.4)">MILLBANK</text>
 </svg>
