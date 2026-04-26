@@ -2114,7 +2114,8 @@ function ReportsScreen({data,t,lang}){
     return{...c,txs,total:txs.reduce((s,tx)=>s+tx.total,0),items:txs.reduce((s,tx)=>s+tx.items.reduce((ss,i)=>ss+i.qty,0),0)};
   }).filter(c=>c.txs.length>0).sort((a,b)=>b.total-a.total);
   const grand=byCust.reduce((s,c)=>s+c.total,0);
-  const margin=grand>0?Math.round((totalProfit/grand)*100):0;
+  const totalCost=grand-totalProfit;
+  const margin=totalCost>0?Math.round((totalProfit/totalCost)*100):0;
 
   const periodLabel=showAll?t.allMonths:MONTHS[monthIdx]+' '+year;
 
@@ -2134,8 +2135,8 @@ function ReportsScreen({data,t,lang}){
   if(bestSellers.length>0)suggestions.push({icon:'🔥',text:`${bestSellers[0].name} is your top seller — consider ordering more stock`});
   Object.entries(productSales).forEach(([id,ps])=>{
     const prod=productMap[id];if(prod&&prod.costPrice&&ps.qty>=2&&ps.revenue>0){
-      const m=Math.round(((ps.revenue-ps.qty*(prod.costPrice||0))/ps.revenue)*100);
-      if(m<15)suggestions.push({icon:'💡',text:`${ps.name} has a thin margin (${m}%) — try raising the price slightly`});}
+      const pCost=ps.qty*(prod.costPrice||0);const m=pCost>0?Math.round(((ps.revenue-pCost)/pCost)*100):0;
+      if(m<20)suggestions.push({icon:'💡',text:`${ps.name} has a low markup (${m}%) — try raising the price slightly`});}
   });
   if(slowMovers.length>0)suggestions.push({icon:'📦',text:`${slowMovers[0].name} is in stock but hasn't sold this period — try a special or bundle`});
   if(revChange!==null&&revChange>0)suggestions.push({icon:'📈',text:`Revenue is up ${revChange}% vs last month — great momentum!`});
@@ -2189,7 +2190,7 @@ function ReportsScreen({data,t,lang}){
           <div style={{background:'linear-gradient(135deg,#14532d,#16a34a)',borderRadius:14,padding:'14px 16px'}}>
             <div style={{color:'rgba(255,255,255,0.55)',fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:.5}}>Profit</div>
             <div style={{color:'#fff',fontSize:22,fontWeight:900,marginTop:4,lineHeight:1}}>{fmt(totalProfit)}</div>
-            <div style={{color:'rgba(255,255,255,0.8)',fontSize:11,fontWeight:700,marginTop:6}}>{margin}% margin</div>
+            <div style={{color:'rgba(255,255,255,0.8)',fontSize:11,fontWeight:700,marginTop:6}}>{margin}% markup</div>
             {profChange!==null&&<span style={{fontSize:10,color:profChange>=0?'#4ade80':'#f87171',fontWeight:700}}>{profChange>=0?'▲':'▼'} {Math.abs(profChange)}% vs last</span>}
           </div>
         </div>
@@ -2199,7 +2200,7 @@ function ReportsScreen({data,t,lang}){
             {bestSellers.map((p,i)=>{
               const pid=Object.keys(productSales).find(k=>productSales[k].name===p.name);
               const prod=productMap[pid];
-              const mPct=p.revenue>0&&prod?.costPrice?Math.round(((p.revenue-p.qty*(prod.costPrice||0))/p.revenue)*100):null;
+              const pCost=p.qty*(prod?.costPrice||0);const mPct=pCost>0&&prod?.costPrice?Math.round(((p.revenue-pCost)/pCost)*100):null;
               return(
               <div key={p.name} style={{marginBottom:i<bestSellers.length-1?12:0}}>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:3}}>
@@ -2232,7 +2233,7 @@ function ReportsScreen({data,t,lang}){
                 </div>
                 <div style={{textAlign:'right'}}>
                   <div style={{fontSize:12,fontWeight:700,color:C.navy}}>{fmt(p.sellPrice)}</div>
-                  {p.costPrice&&<div style={{fontSize:10,color:C.muted}}>{Math.round(((p.sellPrice-p.costPrice)/p.sellPrice)*100)}% margin</div>}
+                  {p.costPrice&&<div style={{fontSize:10,color:C.muted}}>{Math.round(((p.sellPrice-p.costPrice)/p.costPrice)*100)}% markup</div>}
                 </div>
               </div>
             ))}
@@ -2266,7 +2267,7 @@ function ReportsScreen({data,t,lang}){
           <div style={{background:'linear-gradient(135deg,#14532d,#16a34a)',borderRadius:14,padding:'14px 16px'}}>
             <div style={{color:'rgba(255,255,255,0.55)',fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:.5}}>Profit</div>
             <div style={{color:'#fff',fontSize:22,fontWeight:900,marginTop:4,lineHeight:1}}>{fmt(totalProfit)}</div>
-            <div style={{color:'rgba(255,255,255,0.8)',fontSize:11,fontWeight:700,marginTop:6}}>{margin}% margin</div>
+            <div style={{color:'rgba(255,255,255,0.8)',fontSize:11,fontWeight:700,marginTop:6}}>{margin}% markup</div>
             <div style={{color:'rgba(255,255,255,0.45)',fontSize:10,marginTop:1}}>{periodLabel}</div>
           </div>
         </div>

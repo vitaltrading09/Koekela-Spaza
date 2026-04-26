@@ -347,7 +347,8 @@ function Overview({data,setData,setSection,setToast}){
   });});
   const bestSellers=Object.values(productSales).sort((a,b)=>b.qty-a.qty).slice(0,5);
   const maxQty=bestSellers.length?bestSellers[0].qty:1;
-  const todayMargin=todayTotal>0?Math.round((todayProfit/todayTotal)*100):0;
+  const todayCost=todayTotal-todayProfit;
+  const todayMargin=todayCost>0?Math.round((todayProfit/todayCost)*100):0;
 
   function settle(id,method){
     const now=new Date().toISOString();
@@ -361,7 +362,7 @@ function Overview({data,setData,setSection,setToast}){
   const statCards=[
     {label:'Total Outstanding',value:fmt(totalOwed),sub:`${openTxs.length} open transactions`,color:C.navy,icon:'💳'},
     {label:"Today's Sales",value:fmt(todayTotal),sub:`${todayTxs.length} transactions today`,color:C.success,icon:'📈'},
-    {label:"Today's Profit",value:fmt(todayProfit),sub:`${todayMargin}% margin today`,color:'#16a34a',icon:'💰'},
+    {label:"Today's Profit",value:fmt(todayProfit),sub:`${todayMargin}% markup today`,color:'#16a34a',icon:'💰'},
     {label:'Customers',value:data.customers.length,sub:`${data.customers.filter(c=>c.balance>0).length} with open credit`,color:C.amber,icon:'👥'},
     {label:'Products in Stock',value:data.products.length,sub:`${data.products.filter(p=>typeof p.stock_qty==='number'&&p.stock_qty===0).length} out · ${data.products.filter(p=>typeof p.stock_qty==='number'&&p.stock_qty>0&&p.stock_qty<=3).length} low`,color:C.navyLight,icon:'📦'},
   ];
@@ -1320,7 +1321,8 @@ function ReportsSection({data}){
     return{...c,txs,total,items:txs.reduce((s,tx)=>s+tx.items.reduce((ss,i)=>ss+i.qty,0),0)};
   }).filter(c=>c.txs.length>0).sort((a,b)=>b.total-a.total);
   const grand=byCust.reduce((s,c)=>s+c.total,0);
-  const margin=grand>0?Math.round((totalProfit/grand)*100):0;
+  const totalCost=grand-totalProfit;
+  const margin=totalCost>0?Math.round((totalProfit/totalCost)*100):0;
   const label=showAll?'All Time':MONTHS[monthIdx]+' '+year;
 
   // Previous period for comparison
@@ -1337,8 +1339,8 @@ function ReportsSection({data}){
   if(bestSellers.length>0)suggestions.push({icon:'🔥',text:`${bestSellers[0].name} is your top seller — consider ordering more stock`});
   Object.entries(productSales).forEach(([id,ps])=>{
     const prod=productMap[id];if(prod&&prod.costPrice&&ps.qty>=2&&ps.revenue>0){
-      const m=Math.round(((ps.revenue-ps.qty*(prod.costPrice||0))/ps.revenue)*100);
-      if(m<15)suggestions.push({icon:'💡',text:`${ps.name} has a thin margin (${m}%) — try raising the price slightly`});}
+      const pCost=ps.qty*(prod.costPrice||0);const m=pCost>0?Math.round(((ps.revenue-pCost)/pCost)*100):0;
+      if(m<20)suggestions.push({icon:'💡',text:`${ps.name} has a low markup (${m}%) — try raising the price slightly`});}
   });
   if(slowMovers.length>0)suggestions.push({icon:'📦',text:`${slowMovers[0].name} is in stock but hasn't sold this period — try a special or bundle`});
   if(revChange!==null&&revChange>0)suggestions.push({icon:'📈',text:`Revenue is up ${revChange}% vs last month — great momentum!`});
@@ -1401,7 +1403,7 @@ function ReportsSection({data}){
               <div>
                 <div style={{color:'rgba(255,255,255,0.6)',fontSize:13,fontWeight:600,marginBottom:4}}>{label} · Profit</div>
                 <div style={{color:'#fff',fontSize:36,fontWeight:900}}>{fmt(totalProfit)}</div>
-                <div style={{color:'#6ee7b7',fontSize:13,fontWeight:700,marginTop:4}}>{margin}% profit margin</div>
+                <div style={{color:'#6ee7b7',fontSize:13,fontWeight:700,marginTop:4}}>{margin}% markup on cost</div>
                 {profChange!==null&&<span style={{fontSize:12,color:profChange>=0?'#4ade80':'#f87171',fontWeight:700}}>{profChange>=0?'▲':'▼'} {Math.abs(profChange)}% vs last month</span>}
               </div>
               <span style={{fontSize:40,opacity:.4}}>💰</span>
@@ -1413,7 +1415,7 @@ function ReportsSection({data}){
               {bestSellers.map((p,i)=>{
                 const pid=Object.keys(productSales).find(k=>productSales[k].name===p.name);
                 const prod=productMap[pid];
-                const mPct=p.revenue>0&&prod?.costPrice?Math.round(((p.revenue-p.qty*(prod.costPrice||0))/p.revenue)*100):null;
+                const pCost=p.qty*(prod?.costPrice||0);const mPct=pCost>0&&prod?.costPrice?Math.round(((p.revenue-pCost)/pCost)*100):null;
                 return(
                 <div key={p.name} style={{marginBottom:i<bestSellers.length-1?14:0}}>
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
@@ -1422,7 +1424,7 @@ function ReportsSection({data}){
                       <span style={{fontSize:14,fontWeight:700,color:C.text}}>{p.name}</span>
                     </div>
                     <div style={{display:'flex',gap:10,alignItems:'center'}}>
-                      {mPct!==null&&<span style={{fontSize:12,fontWeight:700,background:mPct>=20?'#dcfce7':'#fef9c3',color:mPct>=20?'#15803d':'#854d0e',borderRadius:6,padding:'2px 8px'}}>{mPct}% margin</span>}
+                      {mPct!==null&&<span style={{fontSize:12,fontWeight:700,background:mPct>=20?'#dcfce7':'#fef9c3',color:mPct>=20?'#15803d':'#854d0e',borderRadius:6,padding:'2px 8px'}}>{mPct}% markup</span>}
                       <span style={{fontSize:13,fontWeight:700,color:C.muted}}>{p.qty} sold · {fmt(p.profit)} profit</span>
                     </div>
                   </div>
@@ -1445,7 +1447,7 @@ function ReportsSection({data}){
                     <td style={{padding:'10px 12px',fontWeight:700,fontSize:14}}>{p.name}</td>
                     <td style={{padding:'10px 12px',fontSize:13,color:C.amber,fontWeight:700}}>{p.stock_qty}</td>
                     <td style={{padding:'10px 12px',fontSize:13,fontWeight:700,color:C.navy}}>{fmt(p.sellPrice)}</td>
-                    <td style={{padding:'10px 12px',fontSize:13,color:C.success,fontWeight:700}}>{p.costPrice?Math.round(((p.sellPrice-p.costPrice)/p.sellPrice)*100)+'%':'—'}</td>
+                    <td style={{padding:'10px 12px',fontSize:13,color:C.success,fontWeight:700}}>{p.costPrice?Math.round(((p.sellPrice-p.costPrice)/p.costPrice)*100)+'%':'—'}</td>
                   </tr>
                 ))}</tbody>
               </table>
@@ -1484,7 +1486,7 @@ function ReportsSection({data}){
           <div>
             <div style={{color:'rgba(255,255,255,0.6)',fontSize:13,fontWeight:600,marginBottom:4}}>{label} · Profit</div>
             <div style={{color:'#fff',fontSize:36,fontWeight:900}}>{fmt(totalProfit)}</div>
-            <div style={{color:'#6ee7b7',fontSize:13,fontWeight:700,marginTop:4}}>{margin}% profit margin</div>
+            <div style={{color:'#6ee7b7',fontSize:13,fontWeight:700,marginTop:4}}>{margin}% markup on cost</div>
           </div>
           <span style={{fontSize:40,opacity:.4}}>💰</span>
         </div>
