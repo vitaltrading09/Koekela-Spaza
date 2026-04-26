@@ -973,9 +973,70 @@ function StockReceiveModalDash({data,setData,onClose,setToast}){
   }
 
   function parseReceipt(text){
-    const skip=/\b(total|subtotal|vat|tax|change|cash|receipt|invoice|date|time|thank|cashier|till|register|loyalty|points|balance|welcome|tender|card|pin|approved|amount)\b/i;
+    const skip=/\b(total|subtotal|vat|tax|receipt|invoice|date|time|thank|cashier|till|register|loyalty|points|balance|welcome|tender|card|pin|approved|count|saleno|sno|code|qty|bonus|less|promo|discount|gross|net|rate|debit|mastercard|visa|smart|shopper|rands|earned|spend|expir|missed|join|free|change|cash)\b/i;
     const items=[];
-    text.split('\n').map(l=>l.trim()).filter(l=>l.length>3).forEach(line=>{
+    const lines=text.split('\n').map(l=>l.trim()).filter(l=>l.length>2);
+
+    // ── Format A: Makro/Metro (CODE  UNIT_PRICE  QTY.00  TOTAL) ──
+    const dataLineA=/^\w[\w\-]*\s+(\d{1,5}[.,]\d{2})\s+(\d+)[.,]00\s+\d{1,6}[.,]\d{2}/;
+    const usedA=new Set();
+    for(let i=0;i<lines.length;i++){
+      const m=lines[i].match(dataLineA);
+      if(!m)continue;
+      const unitPrice=parseFloat(m[1].replace(',','.'));
+      const qty=parseInt(m[2]);
+      if(unitPrice<=0||unitPrice>10000||qty<=0)continue;
+      let name='';
+      for(let j=i-1;j>=Math.max(0,i-2);j--){
+        if(!usedA.has(j)&&!dataLineA.test(lines[j])&&!skip.test(lines[j])&&lines[j].length>2){
+          name=lines[j].replace(/[^a-zA-Z0-9\s\-&'.]/g,' ').replace(/\s+/g,' ').trim();
+          usedA.add(j);break;
+        }
+      }
+      if(name.length<2)name=lines[i].split(/\s+/)[0];
+      usedA.add(i);
+      items.push({rawName:name,productId:fuzzyMatch(name),qty:String(qty),costPrice:String(unitPrice)});
+    }
+    if(items.length>0)return items;
+
+    // ── Format C: Pick n Pay (NAME line + QTY @ PRICE TOTAL; or NAME    PRICE) ──
+    const qtyLineC=/^(\d+)\s*@\s*(\d{1,5}[.,]\d{2})\s+\d{1,6}[.,]\d{2}/;
+    if(lines.some(l=>qtyLineC.test(l))){
+      const used=new Set();
+      // Pass 1: multi-line qty items
+      for(let i=0;i<lines.length;i++){
+        const m=lines[i].match(qtyLineC);
+        if(!m)continue;
+        const qty=parseInt(m[1]);
+        const unitPrice=parseFloat(m[2].replace(',','.'));
+        if(unitPrice<=0||unitPrice>10000||qty<=0)continue;
+        let name='';
+        for(let j=i-1;j>=Math.max(0,i-2);j--){
+          if(!used.has(j)&&!qtyLineC.test(lines[j])&&!skip.test(lines[j])&&lines[j].length>2){
+            name=lines[j].replace(/#\w*$/,'').replace(/[^a-zA-Z0-9\s\-&'.]/g,' ').replace(/\s+/g,' ').trim();
+            used.add(j);break;
+          }
+        }
+        if(name.length<2)continue;
+        used.add(i);
+        items.push({rawName:name,productId:fuzzyMatch(name),qty:String(qty),costPrice:String(unitPrice)});
+      }
+      // Pass 2: single-line items (NAME    PRICE or NAME    PRICE#L)
+      for(let i=0;i<lines.length;i++){
+        if(used.has(i)||skip.test(lines[i]))continue;
+        const m=lines[i].match(/^([A-Za-z][A-Za-z0-9&\s\-'.%\/]+?)\s+(\d{1,5}[.,]\d{2})(#\w*)?$/);
+        if(!m)continue;
+        const price=parseFloat(m[2].replace(',','.'));
+        if(price<=0||price>10000)continue;
+        const name=m[1].replace(/[^a-zA-Z0-9\s\-&'.]/g,' ').replace(/\s+/g,' ').trim();
+        if(name.length<2)continue;
+        items.push({rawName:name,productId:fuzzyMatch(name),qty:'1',costPrice:String(price)});
+      }
+      if(items.length>0)return items;
+    }
+
+    // ── Format B: single-line standard receipts ──
+    lines.forEach(line=>{
       if(skip.test(line))return;
       const pm=line.match(/R?\s*(\d{1,5}[.,]\d{2})(?:\s|$)/);
       if(!pm)return;
