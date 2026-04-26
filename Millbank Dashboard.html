@@ -329,6 +329,7 @@ function Overview({data,setData,setSection,setToast}){
   const totalOwed=data.customers.reduce((s,c)=>s+c.balance,0);
   const openTxs=data.transactions.filter(tx=>tx.status==='open');
   const[settleMethodId,setSettleMethodId]=React.useState(null);
+  const[settlePinId,setSettlePinId]=React.useState(null);
 
   // Profit & best sellers calculations
   const productMap={};
@@ -383,6 +384,7 @@ function Overview({data,setData,setSection,setToast}){
         <Btn onClick={()=>setSection('stock')} variant='danger' size='sm'>View Stock →</Btn>
       </div>
     );})()}
+    {settlePinId&&(()=>{const sc=data.customers.find(c=>c.id===settlePinId);return <PINConfirmModal title="Confirm Settlement" message={`Enter PIN to settle ${fmt(sc?.balance)} for ${sc?.name}`} onConfirm={()=>{setSettleMethodId(settlePinId);setSettlePinId(null);}} onCancel={()=>setSettlePinId(null)}/>;})()}
     {settleMethodId&&(()=>{const sc=data.customers.find(c=>c.id===settleMethodId);return(
       <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:4000,display:'flex',alignItems:'center',justifyContent:'center'}} onClick={()=>setSettleMethodId(null)}>
         <div onClick={e=>e.stopPropagation()} style={{background:'#fff',borderRadius:16,padding:'28px 32px',width:400,boxShadow:'0 12px 40px rgba(0,0,0,0.25)'}}>
@@ -445,7 +447,7 @@ function Overview({data,setData,setSection,setToast}){
                       <Badge label={open.length+' open'} color={open.length>0?C.amber:C.success}/>
                     </td>
                     <td style={{padding:'12px 16px'}}>
-                      {c.balance>0&&<Btn onClick={()=>setSettleMethodId(c.id)} variant='success' size='sm'>✓ Settle</Btn>}
+                      {c.balance>0&&<Btn onClick={()=>{const p=localStorage.getItem('millbank_pin');if(p)setSettlePinId(c.id);else setSettleMethodId(c.id);}} variant='success' size='sm'>✓ Settle</Btn>}
                     </td>
                   </tr>
                 );
@@ -813,6 +815,7 @@ function CustomersSection({data,setData,setToast}){
   const [addTxModal,setAddTxModal]=React.useState(false);
   const [invoiceCustomer,setInvoiceCustomer]=React.useState(null);
   const [creditLogModal,setCreditLogModal]=React.useState(false);
+  const [pinGate,setPinGate]=React.useState(null);
   const [txForm,setTxForm]=React.useState({note:'',amount:'',date:new Date().toISOString().split('T')[0]});
 
   const filtered=data.customers.filter(c=>c.name.toLowerCase().includes(search.toLowerCase())||c.phone.includes(search));
@@ -895,6 +898,7 @@ function CustomersSection({data,setData,setToast}){
         )}
         {invoiceCustomer&&<InvoiceView customer={invoiceCustomer} data={data} onClose={()=>setInvoiceCustomer(null)}/>}
         {creditLogModal&&<CreditLogView customer={cust} data={data} onClose={()=>setCreditLogModal(false)}/>}
+        {pinGate&&<PINConfirmModal title={pinGate.title} message={pinGate.message} onConfirm={()=>{pinGate.onConfirm();setPinGate(null);}} onCancel={()=>setPinGate(null)}/>}
         {delPinModal&&(()=>{const dc=data.customers.find(c=>c.id===delPinModal);return <PINConfirmModal title="Confirm Deletion" message={`Enter your PIN to permanently delete ${dc?.name} and all their transactions.`} onConfirm={()=>deleteCustomer(delPinModal)} onCancel={()=>setDelPinModal(false)}/>;})()}
         {delConfirm&&(()=>{const dc=data.customers.find(c=>c.id===delConfirm);return <ConfirmDialog title="Delete Customer" message={`Delete ${dc?.name} and ALL their transactions? This cannot be undone.`} onConfirm={()=>deleteCustomer(delConfirm)} onCancel={()=>setDelConfirm(null)} confirmLabel="Delete Customer"/>;})()}
         {delTxConfirm&&<ConfirmDialog title="Delete Transaction" message={`Delete transaction from ${fmtDate(delTxConfirm.date)} (${fmt(delTxConfirm.total)})?`} onConfirm={()=>deleteTx(delTxConfirm.id,delTxConfirm.total,cust.id)} onCancel={()=>setDelTxConfirm(null)} confirmLabel="Delete"/>}
@@ -924,7 +928,7 @@ function CustomersSection({data,setData,setToast}){
           <Btn onClick={()=>setAddTxModal(true)} variant='gold' size='sm'>+ Add Transaction</Btn>
           <Btn onClick={()=>setCreditLogModal(true)} variant='outline' size='sm'>📋 Credit Log</Btn>
           <Btn onClick={()=>setInvoiceCustomer(cust)} variant='purple' size='sm'>🧾 Invoice</Btn>
-          {openBal>0&&<Btn onClick={()=>setSettleMethodConfirm(true)} variant='success' size='sm'>✓ Settle All</Btn>}
+          {openBal>0&&<Btn onClick={()=>{const p=localStorage.getItem('millbank_pin');if(p)setPinGate({title:'Confirm Settlement',message:`Enter PIN to settle ${fmt(openBal)} for ${cust.name}`,onConfirm:()=>setSettleMethodConfirm(true)});else setSettleMethodConfirm(true);}} variant='success' size='sm'>✓ Settle All</Btn>}
           <Btn onClick={()=>{const p=localStorage.getItem('millbank_pin');if(p)setDelPinModal(cust.id);else setDelConfirm(cust.id);}} variant='dangerOutline' size='sm'>🗑️ Delete</Btn>
         </div>
 
@@ -967,7 +971,7 @@ function CustomersSection({data,setData,setToast}){
                 </div>
                 <div style={{display:'flex',alignItems:'center',gap:12,marginLeft:20}}>
                   <span style={{fontSize:18,fontWeight:900,color:C.navy}}>{fmt(tx.total)}</span>
-                  <Btn onClick={()=>setDelTxConfirm(tx)} variant='dangerOutline' size='sm'>🗑️ Delete</Btn>
+                  <Btn onClick={()=>{const p=localStorage.getItem('millbank_pin');if(p)setPinGate({title:'Delete Transaction',message:`${fmtDate(tx.date)} — ${fmt(tx.total)}`,onConfirm:()=>deleteTx(tx.id,tx.total,cust.id)});else setDelTxConfirm(tx);}} variant='dangerOutline' size='sm'>🗑️ Delete</Btn>
                 </div>
               </div>
             </div>
@@ -1144,6 +1148,7 @@ function StockSection({data,setData,setToast}){
   const [delConfirm,setDelConfirm]=React.useState(null);
   const [delPinModal,setDelPinModal]=React.useState(null);
   const [receiveModal,setReceiveModal]=React.useState(false);
+  const [receivePinGate,setReceivePinGate]=React.useState(false);
 
   const products=data.products.filter(p=>
     p.name.toLowerCase().includes(search.toLowerCase())||
@@ -1188,6 +1193,7 @@ function StockSection({data,setData,setToast}){
       {delPinModal&&<PINConfirmModal title="Confirm Deletion" message={`Enter your PIN to permanently delete "${delPinModal.name}".`} onConfirm={()=>{const p=delPinModal;setDelPinModal(null);setModal(null);deleteProduct(p.id);}} onCancel={()=>setDelPinModal(null)}/>}
       {delConfirm&&<ConfirmDialog title="Delete Product" message={`Delete "${delConfirm.name}"? This cannot be undone.`} onConfirm={()=>deleteProduct(delConfirm.id)} onCancel={()=>setDelConfirm(null)} confirmLabel="Delete Product"/>}
       {receiveModal&&<StockReceiveModalDash data={data} setData={setData} onClose={()=>setReceiveModal(false)} setToast={setToast}/>}
+      {receivePinGate&&<PINConfirmModal title="Receive Stock" message="Enter your PIN to receive stock" onConfirm={()=>{setReceivePinGate(false);setReceiveModal(true);}} onCancel={()=>setReceivePinGate(false)}/>}
 
       {modal&&(
         <Modal title={modal==='add'?'Add New Product':`Edit: ${modal.name||''}`} onClose={()=>setModal(null)}>
@@ -1233,7 +1239,7 @@ function StockSection({data,setData,setToast}){
       <SectionHeader title="Stock / Products" action={
         <div style={{display:'flex',gap:10}}>
           <TextInput value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Search..." style={{width:220}}/>
-          <Btn onClick={()=>setReceiveModal(true)} variant='success'>📥 Receive Stock</Btn>
+          <Btn onClick={()=>{const p=localStorage.getItem('millbank_pin');if(p)setReceivePinGate(true);else setReceiveModal(true);}} variant='success'>📥 Receive Stock</Btn>
           <Btn onClick={openAdd} variant='primary'>+ Add Product</Btn>
         </div>
       }/>
@@ -1667,6 +1673,8 @@ function SettingsSection({data,setData,setToast,lastBackup,onBackup}){
   const[shopAddr,setShopAddr]=React.useState(()=>localStorage.getItem('millbank_shop_address')||'');
   const[shopEmail,setShopEmail]=React.useState(()=>localStorage.getItem('millbank_shop_email')||'');
   const[shopSaved,setShopSaved]=React.useState(false);
+  const[restorePinGate,setRestorePinGate]=React.useState(false);
+  const fileRef=React.useRef(null);
   function saveShopInfo(){
     localStorage.setItem('millbank_shop_name',shopName.trim());
     localStorage.setItem('millbank_shop_address',shopAddr.trim());
@@ -1747,12 +1755,12 @@ function SettingsSection({data,setData,setToast,lastBackup,onBackup}){
             <div style={{fontSize:24,marginBottom:8}}>📤</div>
             <div style={{fontWeight:800,fontSize:15,marginBottom:4}}>Restore from Backup</div>
             <div style={{fontSize:13,color:C.muted,marginBottom:12,lineHeight:1.5}}>Load data from a previously downloaded backup file.</div>
-            <label>
-              <div style={{background:C.navy,color:'#fff',borderRadius:10,padding:'10px 16px',fontSize:14,fontWeight:700,cursor:'pointer',textAlign:'center'}}>
-                Select Backup File
-              </div>
-              <input type="file" accept=".json" onChange={importData} style={{display:'none'}}/>
-            </label>
+            {restorePinGate&&<PINConfirmModal title="Restore Backup" message="Enter PIN to restore data from file. This will overwrite all current data." onConfirm={()=>{setRestorePinGate(false);fileRef.current&&fileRef.current.click();}} onCancel={()=>setRestorePinGate(false)}/>}
+            <div onClick={()=>{const p=localStorage.getItem('millbank_pin');if(p)setRestorePinGate(true);else fileRef.current&&fileRef.current.click();}}
+              style={{background:C.navy,color:'#fff',borderRadius:10,padding:'10px 16px',fontSize:14,fontWeight:700,cursor:'pointer',textAlign:'center'}}>
+              Select Backup File
+            </div>
+            <input ref={fileRef} type="file" accept=".json" onChange={importData} style={{display:'none'}}/>
           </div>
         </div>
       </Card>

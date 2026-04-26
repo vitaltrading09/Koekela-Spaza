@@ -1,4 +1,4 @@
-const CACHE = 'millbank-v8';
+const CACHE = 'millbank-v9';
 const PRECACHE = [
   './Millbank%20App.html',
   './Millbank%20Dashboard.html',

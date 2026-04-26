@@ -1002,6 +1002,7 @@ function InventoryScreen({data,setData,t,lang}){
   const [err,setErr]=React.useState('');
   const [deleteConfirm,setDeleteConfirm]=React.useState(null);
   const [receiveModal,setReceiveModal]=React.useState(false);
+  const [receivePinGate,setReceivePinGate]=React.useState(false);
   const [toast,setToast]=React.useState('');
   const catColors={food:C.success,drinks:C.navyLight,snacks:C.amber,household:C.purple,other:C.muted};
 
@@ -1047,6 +1048,7 @@ function InventoryScreen({data,setData,t,lang}){
     <div style={{height:'100%',display:'flex',flexDirection:'column',background:C.bg,position:'relative'}}>
       {scanning&&<BarcodeScanner t={t} onScan={code=>{setScanning(false);openAdd(code);}} onClose={()=>setScanning(false)}/>}
       {receiveModal&&<StockReceiveModal data={data} setData={setData} t={t} lang={lang} onClose={()=>setReceiveModal(false)} onDone={(msg)=>{setReceiveModal(false);setToast(msg);}}/>}
+      {receivePinGate&&<PINConfirmModal title={t.receiveStock} message="Enter your PIN to receive stock" onConfirm={()=>{setReceivePinGate(false);setReceiveModal(true);}} onCancel={()=>setReceivePinGate(false)}/>}
       {toast&&<Toast msg={toast} onDone={()=>setToast('')}/>}
       {deleteConfirm&&<ConfirmDialog title={t.deleteItem} message={`Delete "${deleteConfirm.name}"?`} onConfirm={()=>doDelete(deleteConfirm.id)} onCancel={()=>setDeleteConfirm(null)} confirmLabel={t.deleteItem}/>}
 
@@ -1061,7 +1063,7 @@ function InventoryScreen({data,setData,t,lang}){
           <div style={{color:C.muted,fontSize:12,fontWeight:600}}>
             {products.length} {lang==='af'?'produkte':'products'} · {lang==='af'?'Tik om te wysig':'Tap to edit'}
           </div>
-          <Btn onClick={()=>setReceiveModal(true)} variant='success' small>📥 {t.receiveStock}</Btn>
+          <Btn onClick={()=>{const p=localStorage.getItem('millbank_pin');if(p)setReceivePinGate(true);else setReceiveModal(true);}} variant='success' small>📥 {t.receiveStock}</Btn>
         </div>
       </div>
 
@@ -1884,6 +1886,7 @@ function CustomersScreen({data,setData,t,lang}){
   const [delPinModal,setDelPinModal]=React.useState(false);
   const [invoiceCustomer,setInvoiceCustomer]=React.useState(null);
   const [creditLogModal,setCreditLogModal]=React.useState(false);
+  const [pinGate,setPinGate]=React.useState(null);
 
   function saveCustomer(){
     if(!form.name.trim())return;
@@ -1950,6 +1953,7 @@ function CustomersScreen({data,setData,t,lang}){
         {delTxConfirm&&<ConfirmDialog title={t.deleteTransaction} message={`${fmtDate(delTxConfirm.date)} — ${fmt(delTxConfirm.total)}`} onConfirm={()=>deleteTx(delTxConfirm.id,delTxConfirm.total,cust.id)} onCancel={()=>setDelTxConfirm(null)} confirmLabel={t.deleteTransaction}/>}
         {invoiceCustomer&&<InvoiceView customer={invoiceCustomer} data={data} onClose={()=>setInvoiceCustomer(null)}/>}
         {creditLogModal&&<CreditLogView customer={cust} data={data} onClose={()=>setCreditLogModal(false)}/>}
+        {pinGate&&<PINConfirmModal title={pinGate.title} message={pinGate.message} onConfirm={()=>{pinGate.onConfirm();setPinGate(null);}} onCancel={()=>setPinGate(null)}/>}
         {delPinModal&&<PINConfirmModal title="Confirm Deletion" message={`Enter your PIN to permanently delete ${cust.name} and all their transactions`} onConfirm={()=>{setDelPinModal(false);deleteCustomer(cust.id);}} onCancel={()=>setDelPinModal(false)}/>}
         {delCustConfirm&&<ConfirmDialog title={t.deleteCustomer} message={t.deleteCustomerConfirm} onConfirm={()=>deleteCustomer(cust.id)} onCancel={()=>setDelCustConfirm(false)} confirmLabel={t.deleteCustomer}/>}
 
@@ -1969,7 +1973,7 @@ function CustomersScreen({data,setData,t,lang}){
               <div style={{color:'rgba(255,255,255,0.6)',fontSize:11,fontWeight:600,textTransform:'uppercase'}}>{t.outstanding}</div>
               <div style={{color:openBalance>0?C.gold:'#4ADE80',fontSize:30,fontWeight:900}}>{fmt(openBalance)}</div>
             </div>
-            {openBalance>0&&<Btn onClick={()=>setSettleMethodModal(true)} variant='gold' small>✓ {t.settle}</Btn>}
+            {openBalance>0&&<Btn onClick={()=>{const p=localStorage.getItem('millbank_pin');if(p)setPinGate({title:t.settle,message:`Enter PIN to settle ${fmt(openBalance)} for ${cust.name}`,onConfirm:()=>setSettleMethodModal(true)});else setSettleMethodModal(true);}} variant='gold' small>✓ {t.settle}</Btn>}
           </div>
         </div>
 
@@ -1985,7 +1989,7 @@ function CustomersScreen({data,setData,t,lang}){
                 </div>
                 <div style={{display:'flex',gap:8,alignItems:'center'}}>
                   <div style={{fontWeight:900,fontSize:17,color:C.navy}}>{fmt(tx.total)}</div>
-                  <button onClick={()=>setDelTxConfirm(tx)}
+                  <button onClick={()=>{const p=localStorage.getItem('millbank_pin');if(p)setPinGate({title:t.deleteTransaction,message:`${fmtDate(tx.date)} — ${fmt(tx.total)}`,onConfirm:()=>deleteTx(tx.id,tx.total,cust.id)});else setDelTxConfirm(tx);}}
                     style={{background:C.dangerLight,border:`1px solid ${C.danger}`,color:C.danger,borderRadius:8,padding:'5px 10px',fontSize:11,cursor:'pointer',fontWeight:700}}>
                     🗑️
                   </button>
