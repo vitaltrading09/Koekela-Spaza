@@ -953,6 +953,8 @@ function StockReceiveModalDash({data,setData,onClose,setToast}){
   const [scannedRows,setScannedRows]=React.useState([]);
   const [newProdModal,setNewProdModal]=React.useState(null);
   const [newProdForm,setNewProdForm]=React.useState({name:'',sellPrice:'',category:'food'});
+  const [rawOcr,setRawOcr]=React.useState('');
+  const [showRaw,setShowRaw]=React.useState(false);
   const fileRef=React.useRef();
 
   function setRow(i,f,v){setRows(r=>r.map((row,idx)=>idx===i?{...row,[f]:v}:row));}
@@ -973,46 +975,50 @@ function StockReceiveModalDash({data,setData,onClose,setToast}){
   }
 
   function parseReceipt(text){
-    const skip=/\b(total|subtotal|vat|tax|receipt|invoice|date|time|thank|cashier|till|register|loyalty|points|balance|welcome|tender|card|pin|approved|count|saleno|sno|code|qty|bonus|less|promo|discount|gross|net|rate|debit|mastercard|visa|smart|shopper|rands|earned|spend|expir|missed|join|free|change|cash)\b/i;
-    const items=[];
+    const skip=/\b(total|subtotal|vat|tax|thank|cashier|till|loyalty|balance|tender|pin|count|saleno|bonus|less|promo|discount|gross|net|rate|debit|mastercard|visa|smart|shopper|rands|earned|spend|join|free|item|invoice|receipt|register|welcome|approved|cash|change)\b/i;
     const lines=text.split('\n').map(l=>l.trim()).filter(l=>l.length>2);
+    const items=[];
+    const used=new Set();
 
-    // ── Format A: Makro/Metro (CODE  UNIT_PRICE  QTY.00  TOTAL) ──
-    const dataLineA=/^\w[\w\-]*\s+(\d{1,5}[.,]\d{2})\s+(\d+)[.,]00\s+\d{1,6}[.,]\d{2}/;
-    const usedA=new Set();
+    function endPrice(line){const m=line.match(/(\d{1,5}[.,]\d{2})(#\w*)?$/);return m?parseFloat(m[1].replace(',','.')):null;}
+
+    // Pass 1: Makro/Metro — three numbers with qty.00, validate price*qty≈total
+    const threeNums=/(\d{1,5}[.,]\d{2})\s+(\d+)[.,]00\s+(\d{1,6}[.,]\d{2})/;
     for(let i=0;i<lines.length;i++){
-      const m=lines[i].match(dataLineA);
+      if(skip.test(lines[i]))continue;
+      const m=lines[i].match(threeNums);
       if(!m)continue;
-      const unitPrice=parseFloat(m[1].replace(',','.'));
+      const price=parseFloat(m[1].replace(',','.'));
       const qty=parseInt(m[2]);
-      if(unitPrice<=0||unitPrice>10000||qty<=0)continue;
+      const total=parseFloat(m[3].replace(',','.'));
+      if(price<=0||price>10000||qty<=0)continue;
+      if(Math.abs(price*qty-total)>Math.max(total*0.05,0.10))continue;
       let name='';
       for(let j=i-1;j>=Math.max(0,i-2);j--){
-        if(!usedA.has(j)&&!dataLineA.test(lines[j])&&!skip.test(lines[j])&&lines[j].length>2){
+        if(!used.has(j)&&!skip.test(lines[j])&&!/\d{1,5}[.,]\d{2}/.test(lines[j])&&lines[j].replace(/\d/g,'').trim().length>2){
           name=lines[j].replace(/[^a-zA-Z0-9\s\-&'.]/g,' ').replace(/\s+/g,' ').trim();
-          usedA.add(j);break;
+          used.add(j);break;
         }
       }
-      if(name.length<2)name=lines[i].split(/\s+/)[0];
-      usedA.add(i);
-      items.push({rawName:name,productId:fuzzyMatch(name),qty:String(qty),costPrice:String(unitPrice)});
+      if(name.length<2){const before=lines[i].substring(0,lines[i].indexOf(m[1])).replace(/[^a-zA-Z]/g,' ').trim();if(before.length>1)name=before;}
+      if(name.length<2)continue;
+      used.add(i);
+      items.push({rawName:name,productId:fuzzyMatch(name),qty:String(qty),costPrice:String(price)});
     }
     if(items.length>0)return items;
 
-    // ── Format C: Pick n Pay (NAME line + QTY @ PRICE TOTAL; or NAME    PRICE) ──
-    const qtyLineC=/^(\d+)\s*@\s*(\d{1,5}[.,]\d{2})\s+\d{1,6}[.,]\d{2}/;
-    if(lines.some(l=>qtyLineC.test(l))){
-      const used=new Set();
-      // Pass 1: multi-line qty items
+    // Pass 2: Pick n Pay QTY@PRICE — accepts @, ©, a, o as OCR misreads of @
+    const qtyAt=/^(\d+)\s*[@©oa]\s*(\d{1,5}[.,]\d{2})/i;
+    if(lines.some(l=>qtyAt.test(l))){
       for(let i=0;i<lines.length;i++){
-        const m=lines[i].match(qtyLineC);
+        if(used.has(i))continue;
+        const m=lines[i].match(qtyAt);
         if(!m)continue;
-        const qty=parseInt(m[1]);
-        const unitPrice=parseFloat(m[2].replace(',','.'));
-        if(unitPrice<=0||unitPrice>10000||qty<=0)continue;
+        const qty=parseInt(m[1]);const unitPrice=parseFloat(m[2].replace(',','.'));
+        if(unitPrice<=0||unitPrice>10000||qty<=0||qty>100)continue;
         let name='';
         for(let j=i-1;j>=Math.max(0,i-2);j--){
-          if(!used.has(j)&&!qtyLineC.test(lines[j])&&!skip.test(lines[j])&&lines[j].length>2){
+          if(!used.has(j)&&!skip.test(lines[j])&&!qtyAt.test(lines[j])&&!/^\d/.test(lines[j])&&lines[j].length>2){
             name=lines[j].replace(/#\w*$/,'').replace(/[^a-zA-Z0-9\s\-&'.]/g,' ').replace(/\s+/g,' ').trim();
             used.add(j);break;
           }
@@ -1021,36 +1027,23 @@ function StockReceiveModalDash({data,setData,onClose,setToast}){
         used.add(i);
         items.push({rawName:name,productId:fuzzyMatch(name),qty:String(qty),costPrice:String(unitPrice)});
       }
-      // Pass 2: single-line items (NAME    PRICE or NAME    PRICE#L)
-      for(let i=0;i<lines.length;i++){
-        if(used.has(i)||skip.test(lines[i]))continue;
-        const m=lines[i].match(/^([A-Za-z][A-Za-z0-9&\s\-'.%\/]+?)\s+(\d{1,5}[.,]\d{2})(#\w*)?$/);
-        if(!m)continue;
-        const price=parseFloat(m[2].replace(',','.'));
-        if(price<=0||price>10000)continue;
-        const name=m[1].replace(/[^a-zA-Z0-9\s\-&'.]/g,' ').replace(/\s+/g,' ').trim();
-        if(name.length<2)continue;
-        items.push({rawName:name,productId:fuzzyMatch(name),qty:'1',costPrice:String(price)});
-      }
       if(items.length>0)return items;
     }
 
-    // ── Format B: single-line standard receipts ──
-    lines.forEach(line=>{
-      if(skip.test(line))return;
-      const pm=line.match(/R?\s*(\d{1,5}[.,]\d{2})(?:\s|$)/);
-      if(!pm)return;
-      const price=parseFloat(pm[1].replace(',','.'));
-      if(price<=0||price>10000)return;
-      const qm=line.match(/\b(\d+)\s*[xX@]|[xX@]\s*(\d+)/);
-      const qty=qm?parseInt(qm[1]||qm[2]):1;
-      const priceIdx=line.lastIndexOf(pm[0].trim());
-      const raw=line.substring(0,priceIdx>0?priceIdx:line.length)
-        .replace(/\b\d+\s*[xX@]\s*|\s*[xX@]\s*\d+/gi,'')
-        .replace(/[^a-zA-Z0-9\s\-&']/g,' ').replace(/\s+/g,' ').trim();
-      if(raw.length<2)return;
-      items.push({rawName:raw,productId:fuzzyMatch(raw),qty:String(qty),costPrice:String(price)});
-    });
+    // Pass 3: single-line — price at end of line, alphabetic name before it
+    for(let i=0;i<lines.length;i++){
+      if(used.has(i)||skip.test(lines[i]))continue;
+      if(/^-/.test(lines[i]))continue;
+      const price=endPrice(lines[i]);
+      if(!price||price<=0||price>10000)continue;
+      const priceStr=lines[i].match(/(\d{1,5}[.,]\d{2})(#\w*)?$/)[1];
+      const priceIdx=lines[i].lastIndexOf(priceStr);
+      const namePart=lines[i].substring(0,priceIdx).replace(/[^a-zA-Z0-9\s\-&'.]/g,' ').replace(/\s+/g,' ').trim();
+      if(namePart.length<3||!/[a-zA-Z]/.test(namePart))continue;
+      if(/^\d+$/.test(namePart.replace(/\s/g,'')))continue;
+      used.add(i);
+      items.push({rawName:namePart,productId:fuzzyMatch(namePart),qty:'1',costPrice:String(price)});
+    }
     return items;
   }
 
@@ -1069,7 +1062,9 @@ function StockReceiveModalDash({data,setData,onClose,setToast}){
       }
       setScanStatus('processing');setScanMsg('Reading receipt — this may take 15–30 seconds...');
       const result=await window.Tesseract.recognize(file,'eng');
-      const items=parseReceipt(result.data.text);
+      const raw=result.data.text;
+      setRawOcr(raw);
+      const items=parseReceipt(raw);
       if(items.length===0){setScanStatus('error');setScanMsg('No line items detected. Try a clearer, well-lit photo of the receipt.');}
       else{setScannedRows(items);setScanStatus('review');}
     }catch(err){
@@ -1200,7 +1195,9 @@ function StockReceiveModalDash({data,setData,onClose,setToast}){
         {scanStatus==='error'&&(
           <div style={{textAlign:'center',padding:'32px 20px'}}>
             <div style={{fontSize:44,marginBottom:12}}>⚠️</div>
-            <div style={{fontWeight:700,color:C.danger,marginBottom:16,fontSize:14}}>{scanMsg}</div>
+            <div style={{fontWeight:700,color:C.danger,marginBottom:12,fontSize:14}}>{scanMsg}</div>
+            {rawOcr&&<button onClick={()=>setShowRaw(r=>!r)} style={{fontSize:12,color:C.muted,background:'none',border:'none',cursor:'pointer',marginBottom:8,display:'block',margin:'0 auto 8px'}}>{showRaw?'Hide':'👁 Show'} raw OCR text</button>}
+            {showRaw&&<textarea readOnly value={rawOcr} style={{width:'100%',height:140,fontSize:11,fontFamily:'monospace',background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:10,boxSizing:'border-box',marginBottom:14,textAlign:'left'}}/>}
             <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{display:'none'}} onChange={handleFile}/>
             <Btn onClick={()=>setScanStatus('idle')} variant='ghost' style={{marginRight:8}}>← Back</Btn>
             <Btn onClick={()=>fileRef.current.click()} variant='primary'>📸 Try Again</Btn>
