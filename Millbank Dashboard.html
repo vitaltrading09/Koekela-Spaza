@@ -709,7 +709,7 @@ function CustomersSection({data,setData,setToast}){
 
   function deleteCustomer(id){
     const nd={...data,customers:data.customers.filter(c=>c.id!==id),transactions:data.transactions.filter(tx=>tx.customerId!==id)};
-    setData(nd);saveData(nd);setDelConfirm(null);setViewCustomer(null);setToast('Customer deleted');
+    setData(nd);saveData(nd);setDelConfirm(null);setDelPinModal(false);setViewCustomer(null);setToast('Customer deleted');
   }
 
   function settle(id,method){
@@ -773,8 +773,8 @@ function CustomersSection({data,setData,setToast}){
           </div>
         )}
         {invoiceCustomer&&<InvoiceView customer={invoiceCustomer} data={data} onClose={()=>setInvoiceCustomer(null)}/>}
-        {delPinModal&&<PINConfirmModal title="Confirm Deletion" message={`Enter your PIN to permanently delete ${cust.name} and all their transactions.`} onConfirm={()=>{setDelPinModal(false);deleteCustomer(cust.id);}} onCancel={()=>setDelPinModal(false)}/>}
-        {delConfirm&&<ConfirmDialog title="Delete Customer" message={`Delete ${cust.name} and ALL their transactions? This cannot be undone.`} onConfirm={()=>deleteCustomer(cust.id)} onCancel={()=>setDelConfirm(null)} confirmLabel="Delete Customer"/>}
+        {delPinModal&&(()=>{const dc=data.customers.find(c=>c.id===delPinModal);return <PINConfirmModal title="Confirm Deletion" message={`Enter your PIN to permanently delete ${dc?.name} and all their transactions.`} onConfirm={()=>deleteCustomer(delPinModal)} onCancel={()=>setDelPinModal(false)}/>;})()}
+        {delConfirm&&(()=>{const dc=data.customers.find(c=>c.id===delConfirm);return <ConfirmDialog title="Delete Customer" message={`Delete ${dc?.name} and ALL their transactions? This cannot be undone.`} onConfirm={()=>deleteCustomer(delConfirm)} onCancel={()=>setDelConfirm(null)} confirmLabel="Delete Customer"/>;})()}
         {delTxConfirm&&<ConfirmDialog title="Delete Transaction" message={`Delete transaction from ${fmtDate(delTxConfirm.date)} (${fmt(delTxConfirm.total)})?`} onConfirm={()=>deleteTx(delTxConfirm.id,delTxConfirm.total,cust.id)} onCancel={()=>setDelTxConfirm(null)} confirmLabel="Delete"/>}
 
         {addTxModal&&(
@@ -802,7 +802,7 @@ function CustomersSection({data,setData,setToast}){
           <Btn onClick={()=>setAddTxModal(true)} variant='gold' size='sm'>+ Add Transaction</Btn>
           <Btn onClick={()=>setInvoiceCustomer(cust)} variant='purple' size='sm'>🧾 Invoice</Btn>
           {openBal>0&&<Btn onClick={()=>setSettleMethodConfirm(true)} variant='success' size='sm'>✓ Settle All</Btn>}
-          <Btn onClick={()=>{const p=localStorage.getItem('millbank_pin');if(p)setDelPinModal(true);else setDelConfirm(true);}} variant='dangerOutline' size='sm'>🗑️ Delete</Btn>
+          <Btn onClick={()=>{const p=localStorage.getItem('millbank_pin');if(p)setDelPinModal(cust.id);else setDelConfirm(cust.id);}} variant='dangerOutline' size='sm'>🗑️ Delete</Btn>
         </div>
 
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:16,marginBottom:20}}>
@@ -900,6 +900,9 @@ function CustomersSection({data,setData,setToast}){
         </div>
       );})()}
 
+      {delPinModal&&(()=>{const dc=data.customers.find(c=>c.id===delPinModal);return <PINConfirmModal title="Confirm Deletion" message={`Enter your PIN to permanently delete ${dc?.name} and all their transactions.`} onConfirm={()=>deleteCustomer(delPinModal)} onCancel={()=>setDelPinModal(false)}/>;})()}
+      {delConfirm&&(()=>{const dc=data.customers.find(c=>c.id===delConfirm);return <ConfirmDialog title="Delete Customer" message={`Delete ${dc?.name} and ALL their transactions? This cannot be undone.`} onConfirm={()=>deleteCustomer(delConfirm)} onCancel={()=>setDelConfirm(null)} confirmLabel="Delete Customer"/>;})()}
+
       <SectionHeader title="Customers" action={
         <div style={{display:'flex',gap:10}}>
           <TextInput value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Search..." style={{width:220}}/>
@@ -927,6 +930,7 @@ function CustomersSection({data,setData,setToast}){
                 <Btn onClick={()=>setViewCustomer(c)} variant='outline' size='sm'>📋 View Log</Btn>
                 <Btn onClick={()=>{setForm({name:c.name,phone:c.phone});setModal(c);}} variant='ghost' size='sm'>✏️ Edit</Btn>
                 {c.balance>0&&<Btn onClick={()=>setSettleMethodConfirm(c.id)} variant='success' size='sm'>✓ Settle</Btn>}
+                <Btn onClick={()=>{const p=localStorage.getItem('millbank_pin');if(p)setDelPinModal(c.id);else setDelConfirm(c.id);}} variant='dangerOutline' size='sm'>🗑️ Delete</Btn>
               </div>
               <div style={{padding:'0 20px 14px',fontSize:12,color:C.muted}}>
                 {open.length} open · {txs.length} total transactions
